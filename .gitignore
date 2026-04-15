@@ -1,0 +1,46 @@
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+**/dist/
+
+# .NET / Visual Studio / Rider
+**/.vs/
+**/.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Local editor files
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+**/.DS_Store
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Docker / local data
+docker-data/
+postgres_data/
+
+# Test and coverage artifacts
+coverage/
+TestResults/
+
+# Node dependencies (for apps/web)
+**/node_modules/
