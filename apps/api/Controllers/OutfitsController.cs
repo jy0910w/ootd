@@ -1,69 +1,115 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Mscc.GenerativeAI.Types;
-using OotdPlatform.Api.Data;
-using OotdPlatform.Api.Models;
+using OotdPlatform.Api.Contracts;
 using OotdPlatform.Api.Services;
+using System.Security.Claims;
+
+namespace OotdPlatform.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class OutfitsController : ControllerBase
+[Authorize]
+[Route("api/v1/outfits")]
+public sealed class OutfitsController : ControllerBase
 {
-    private readonly AppDbContext _context;
-    private readonly GeminiService _geminiService;
+    private readonly InMemoryPlatformStore _store;
 
-    public OutfitsController(AppDbContext context, GeminiService geminiService)
+    public OutfitsController(InMemoryPlatformStore store)
     {
-        _context = context;
-        _geminiService = geminiService;
+        _store = store;
+    }
+
+    [HttpGet("mine")]
+    public ActionResult<PagedResponse<OutfitResponse>> GetMine([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var userId = User.GetRequiredUserId();
+        var all = _store.GetOutfitsByUser(userId);
+        var paged = all.Skip((page - 1) * pageSize).Take(pageSize).Select(ToResponse).ToArray();
+        return Ok(new PagedResponse<OutfitResponse>(paged, page, pageSize, all.Count));
     }
 
     [HttpPost]
-    public async Task<IActionResult> PostOutfit([FromBody] Outfit outfit)
+    public ActionResult<CreateOutfitResponse> Create([FromBody] CreateOutfitRequest request)
+    {
+        var userId = User.GetRequiredUserId();
+        var outfit = _store.CreateOutfit(userId, request.Title, request.Description, request.Occasion, request.Season, request.WeatherRange, request.ImageUrls, request.ItemIds);
+        return CreatedAtAction(nameof(GetById), new { id = outfit.Id }, new CreateOutfitResponse(outfit.Id, outfit.ModerationStatus));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}")]
+    public ActionResult<OutfitResponse> GetById([FromRoute] Guid id)
+    {
+        var outfit = _store.GetOutfit(id);
+        if (outfit is null)
+        {
+            return NotFound(new ApiErrorResponse("OUTFIT_NOT_FOUND", "穿搭不存在", null, HttpContext.TraceIdentifier));
+        }
+
+        if (!CanReadOutfit(outfit))
+        {
+            return Forbid();
+        }
+
+        return Ok(ToResponse(outfit));
+    }
+
+    [HttpPatch("{id:guid}")]
+    public ActionResult<OutfitResponse> Patch([FromRoute] Guid id, [FromBody] UpdateOutfitRequest request)
     {
         try
         {
-            // 1. 呼叫 Gemini AI 進行分析
-            if (!string.IsNullOrEmpty(outfit.ImageUrl))
-            {
-                var aiAnalysis = await _geminiService.AnalyzeOutfitAsync(outfit.ImageUrl);
-                outfit.Description = aiAnalysis; // 將 AI 的分析存入描述欄位
-            }
-
-            // 2. 存入資料庫
-            _context.Outfits.Add(outfit);
-            await _context.SaveChangesAsync();
-
-            return Ok(outfit);
+            var userId = User.GetRequiredUserId();
+            var updated = _store.UpdateOutfit(id, userId, request.Title, request.Description, request.Occasion, request.Season, request.WeatherRange, request.ImageUrls, request.ItemIds);
+            return Ok(ToResponse(updated));
         }
-        catch (GeminiApiTimeoutException ex)
+        catch (KeyNotFoundException)
         {
-            return StatusCode(StatusCodes.Status429TooManyRequests, new
-            {
-                Message = "Gemini 配額或速率限制已達上限，請稍後再試。",
-                Detail = ex.Message
-            });
+            return NotFound(new ApiErrorResponse("OUTFIT_NOT_FOUND", "穿搭不存在", null, HttpContext.TraceIdentifier));
         }
-        catch (GeminiApiException ex)
+        catch (UnauthorizedAccessException)
         {
-            return StatusCode(StatusCodes.Status502BadGateway, new
-            {
-                Message = "Gemini 服務呼叫失敗，請稍後再試。",
-                Detail = ex.Message
-            });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new
-            {
-                Message = ex.Message
-            });
-        }
-        catch (NotSupportedException ex)
-        {
-            return BadRequest(new
-            {
-                Message = ex.Message
-            });
+            return Forbid();
         }
     }
+
+    [HttpDelete("{id:guid}")]
+    public ActionResult Delete([FromRoute] Guid id)
+    {
+        var userId = User.GetRequiredUserId();
+        return _store.DeleteOutfit(id, userId)
+            ? NoContent()
+            : NotFound(new ApiErrorResponse("OUTFIT_NOT_FOUND", "穿搭不存在", null, HttpContext.TraceIdentifier));
+    }
+
+    private bool CanReadOutfit(PlatformOutfit outfit)
+    {
+        if (outfit.ModerationStatus == "approved")
+        {
+            return true;
+        }
+
+        if (User?.Identity?.IsAuthenticated != true)
+        {
+            return false;
+        }
+
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "user";
+        var userId = User.GetRequiredUserId();
+        return outfit.UserId == userId || role is "moderator" or "admin";
+    }
+
+    private static OutfitResponse ToResponse(PlatformOutfit outfit)
+        => new(
+            outfit.Id,
+            outfit.UserId,
+            outfit.Title,
+            outfit.Description,
+            outfit.Occasion,
+            outfit.Season,
+            outfit.WeatherRange,
+            outfit.ImageUrls,
+            outfit.ItemIds,
+            outfit.ModerationStatus,
+            outfit.CreatedAt,
+            outfit.UpdatedAt);
 }
