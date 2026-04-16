@@ -3,10 +3,10 @@ using System.ComponentModel.DataAnnotations;
 namespace OotdPlatform.Api.Contracts;
 
 public sealed record RecommendationQueryRequest(
-    [property: Required, MinLength(1)] IReadOnlyCollection<Guid> ItemIds,
-    [property: Required, MaxLength(30)] string Occasion,
-    [property: Required, MaxLength(20)] string Season,
-    [property: Required, MaxLength(30)] string Weather,
+    [Required, MinLength(1)] IReadOnlyCollection<Guid> ItemIds,
+    [Required, MaxLength(30)] string Occasion,
+    [Required, MaxLength(20)] string Season,
+    [Required, MaxLength(30)] string Weather,
     IReadOnlyCollection<string>? StyleHints);
 
 public sealed record RecommendationResult(Guid OutfitId, decimal Score, IReadOnlyCollection<string> Reasons);

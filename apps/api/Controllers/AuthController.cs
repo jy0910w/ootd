@@ -37,8 +37,8 @@ public sealed class AuthController : ControllerBase
     [AllowAnonymous]
     public ActionResult<AuthResponse> Login([FromBody] LoginRequest request)
     {
-        var user = _store.GetUserByEmail(request.Email.Trim().ToLowerInvariant());
-        if (user is null || !string.Equals(user.Password, request.Password, StringComparison.Ordinal))
+        var user = _store.ValidateUserCredentials(request.Email, request.Password);
+        if (user is null)
         {
             return Unauthorized(new ApiErrorResponse("INVALID_CREDENTIALS", "帳號或密碼錯誤", null, HttpContext.TraceIdentifier));
         }

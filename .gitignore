@@ -18,6 +18,10 @@
 *.swo
 *~
 
+# Python cache
+**/__pycache__/
+*.pyc
+
 # OS files
 **/.DS_Store
 
@@ -44,3 +48,4 @@ TestResults/
 
 # Node dependencies (for apps/web)
 **/node_modules/
+**/.next/

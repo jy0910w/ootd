@@ -1,275 +1,525 @@
-using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
+using OotdPlatform.Api.Data;
+using OotdPlatform.Api.Models;
 
 namespace OotdPlatform.Api.Services;
 
 public sealed class InMemoryPlatformStore
 {
-    private readonly ConcurrentDictionary<Guid, PlatformUser> _users = new();
-    private readonly ConcurrentDictionary<string, Guid> _emailToUserId = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<Guid, PlatformItem> _items = new();
-    private readonly ConcurrentDictionary<Guid, PlatformOutfit> _outfits = new();
-    private readonly ConcurrentDictionary<Guid, PlatformRecommendationLog> _recommendationLogs = new();
-    private readonly ConcurrentDictionary<Guid, PlatformFeedback> _feedback = new();
-    private readonly ConcurrentBag<PlatformModerationAction> _moderationActions = [];
+    private readonly AppDbContext _dbContext;
 
-    public InMemoryPlatformStore()
+    public InMemoryPlatformStore(AppDbContext dbContext)
     {
-        var admin = new PlatformUser(
-            Guid.Parse("00000000-0000-0000-0000-000000000001"),
-            "admin@example.com",
-            "Admin123!",
-            "Admin",
-            "admin",
-            "active",
-            [],
-            "zh-TW",
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow);
-
-        _users[admin.Id] = admin;
-        _emailToUserId[admin.Email] = admin.Id;
+        _dbContext = dbContext;
+        EnsureSeedData();
     }
 
     public PlatformUser? GetUserByEmail(string email)
-        => _emailToUserId.TryGetValue(email, out var id) && _users.TryGetValue(id, out var user) ? user : null;
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var user = _dbContext.Users.AsNoTracking().FirstOrDefault(x => x.Email == normalizedEmail);
+        return user is null ? null : ToPlatformUser(user);
+    }
 
     public PlatformUser? GetUserById(Guid userId)
-        => _users.TryGetValue(userId, out var user) ? user : null;
+    {
+        var user = _dbContext.Users.AsNoTracking().FirstOrDefault(x => x.Id == userId);
+        return user is null ? null : ToPlatformUser(user);
+    }
+
+    public PlatformUser? ValidateUserCredentials(string email, string password)
+    {
+        var user = _dbContext.Users.AsNoTracking().FirstOrDefault(x => x.Email == email.Trim().ToLowerInvariant());
+        if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        {
+            return null;
+        }
+
+        return ToPlatformUser(user);
+    }
 
     public PlatformUser CreateUser(string email, string password, string displayName)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        if (_emailToUserId.ContainsKey(normalizedEmail))
+        if (_dbContext.Users.Any(x => x.Email == normalizedEmail))
         {
             throw new InvalidOperationException("EMAIL_ALREADY_EXISTS");
         }
 
         var now = DateTimeOffset.UtcNow;
-        var user = new PlatformUser(Guid.NewGuid(), normalizedEmail, password, displayName.Trim(), "user", "active", [], "zh-TW", now, now);
-
-        if (!_emailToUserId.TryAdd(normalizedEmail, user.Id) || !_users.TryAdd(user.Id, user))
+        var user = new User
         {
-            throw new InvalidOperationException("USER_CREATE_FAILED");
-        }
+            Id = Guid.NewGuid(),
+            Email = normalizedEmail,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            DisplayName = displayName.Trim(),
+            Role = "user",
+            Status = "active",
+            StylePreferences = [],
+            Locale = "zh-TW",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
 
-        return user;
+        _dbContext.Users.Add(user);
+        _dbContext.SaveChanges();
+        return ToPlatformUser(user);
     }
 
     public PlatformUser UpdateUser(Guid userId, string? displayName, IReadOnlyCollection<string>? stylePreferences, string? locale)
     {
-        var existing = GetUserById(userId) ?? throw new KeyNotFoundException("USER_NOT_FOUND");
-        var updated = existing with
-        {
-            DisplayName = string.IsNullOrWhiteSpace(displayName) ? existing.DisplayName : displayName.Trim(),
-            StylePreferences = stylePreferences?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray() ?? existing.StylePreferences,
-            Locale = string.IsNullOrWhiteSpace(locale) ? existing.Locale : locale.Trim(),
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId) ?? throw new KeyNotFoundException("USER_NOT_FOUND");
 
-        _users[userId] = updated;
-        return updated;
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            user.DisplayName = displayName.Trim();
+        }
+
+        if (stylePreferences is not null)
+        {
+            user.StylePreferences = stylePreferences.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
+        }
+
+        if (!string.IsNullOrWhiteSpace(locale))
+        {
+            user.Locale = locale.Trim();
+        }
+
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.SaveChanges();
+        return ToPlatformUser(user);
     }
 
     public IReadOnlyCollection<PlatformItem> GetItems(Guid userId, string? category, string? color)
     {
-        var query = _items.Values.Where(x => x.UserId == userId);
+        var query = _dbContext.Items.AsNoTracking().Where(x => x.UserId == userId);
         if (!string.IsNullOrWhiteSpace(category))
         {
-            query = query.Where(x => x.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+            var normalized = category.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Category == normalized);
         }
 
         if (!string.IsNullOrWhiteSpace(color))
         {
-            query = query.Where(x => x.Color.Equals(color, StringComparison.OrdinalIgnoreCase));
+            var normalized = color.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Color == normalized);
         }
 
-        return query.OrderByDescending(x => x.CreatedAt).ToArray();
+        return query.OrderByDescending(x => x.CreatedAt).Select(ToPlatformItem).ToArray();
     }
 
-    public PlatformItem? GetItem(Guid itemId) => _items.TryGetValue(itemId, out var item) ? item : null;
+    public PlatformItem? GetItem(Guid itemId)
+    {
+        var item = _dbContext.Items.AsNoTracking().FirstOrDefault(x => x.Id == itemId);
+        return item is null ? null : ToPlatformItem(item);
+    }
 
-    public PlatformItem CreateItem(Guid userId, string name, string category, string color, IReadOnlyCollection<string>? styleTags, string imageUrl)
+    public IReadOnlyCollection<PlatformItem> GetItemsByIds(IReadOnlyCollection<Guid> ids)
+    {
+        if (ids.Count == 0) return [];
+        return _dbContext.Items.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .Select(ToPlatformItem)
+            .ToArray();
+    }
+
+    public PlatformItem CreateItem(Guid userId, string name, string category, string color, IReadOnlyCollection<string>? styleTags, string? imageUrl)
     {
         var now = DateTimeOffset.UtcNow;
-        var item = new PlatformItem(Guid.NewGuid(), userId, name.Trim(), category.Trim().ToLowerInvariant(), color.Trim().ToLowerInvariant(),
-            styleTags?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray() ?? [], imageUrl.Trim(), "active", now, now);
+        var item = new WardrobeItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = name.Trim(),
+            Category = category.Trim().ToLowerInvariant(),
+            Color = color.Trim().ToLowerInvariant(),
+            StyleTags = styleTags?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray() ?? [],
+            ImageUrl = imageUrl?.Trim() ?? string.Empty,
+            Status = "active",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
 
-        _items[item.Id] = item;
-        return item;
+        _dbContext.Items.Add(item);
+        _dbContext.SaveChanges();
+        return ToPlatformItem(item);
     }
 
     public PlatformItem UpdateItem(Guid itemId, Guid userId, string? name, string? category, string? color, IReadOnlyCollection<string>? styleTags, string? imageUrl, string? status)
     {
-        var existing = GetItem(itemId) ?? throw new KeyNotFoundException("ITEM_NOT_FOUND");
-        if (existing.UserId != userId)
+        var item = _dbContext.Items.FirstOrDefault(x => x.Id == itemId) ?? throw new KeyNotFoundException("ITEM_NOT_FOUND");
+        if (item.UserId != userId)
         {
             throw new UnauthorizedAccessException("FORBIDDEN");
         }
 
-        var updated = existing with
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            Name = string.IsNullOrWhiteSpace(name) ? existing.Name : name.Trim(),
-            Category = string.IsNullOrWhiteSpace(category) ? existing.Category : category.Trim().ToLowerInvariant(),
-            Color = string.IsNullOrWhiteSpace(color) ? existing.Color : color.Trim().ToLowerInvariant(),
-            StyleTags = styleTags?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray() ?? existing.StyleTags,
-            ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? existing.ImageUrl : imageUrl.Trim(),
-            Status = string.IsNullOrWhiteSpace(status) ? existing.Status : status.Trim().ToLowerInvariant(),
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+            item.Name = name.Trim();
+        }
 
-        _items[itemId] = updated;
-        return updated;
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            item.Category = category.Trim().ToLowerInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(color))
+        {
+            item.Color = color.Trim().ToLowerInvariant();
+        }
+
+        if (styleTags is not null)
+        {
+            item.StyleTags = styleTags.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
+        }
+
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+        {
+            item.ImageUrl = imageUrl.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            item.Status = status.Trim().ToLowerInvariant();
+        }
+
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.SaveChanges();
+        return ToPlatformItem(item);
+    }
+
+    /// <summary>
+    /// 由 Gemini 背景分析完成後呼叫，僅更新 StyleTags。
+    /// 此方法使用新的 DbContext 範疇，不依賴已關閉的請求範疇。
+    /// </summary>
+    public void UpdateItemStyleTagsBackground(Guid itemId, IReadOnlyCollection<string> styleTags)
+    {
+        var item = _dbContext.Items.FirstOrDefault(x => x.Id == itemId);
+        if (item is null) return;
+
+        item.StyleTags = styleTags.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray();
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.SaveChanges();
     }
 
     public bool ArchiveItem(Guid itemId, Guid userId)
     {
-        var existing = GetItem(itemId);
-        if (existing is null || existing.UserId != userId)
+        var item = _dbContext.Items.FirstOrDefault(x => x.Id == itemId);
+        if (item is null || item.UserId != userId)
         {
             return false;
         }
 
-        _items[itemId] = existing with { Status = "archived", UpdatedAt = DateTimeOffset.UtcNow };
+        item.Status = "archived";
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.SaveChanges();
         return true;
     }
 
     public IReadOnlyCollection<PlatformOutfit> GetOutfitsByUser(Guid userId)
-        => _outfits.Values.Where(x => x.UserId == userId).OrderByDescending(x => x.CreatedAt).ToArray();
+    {
+        return _dbContext.Outfits
+            .AsNoTracking()
+            .Include(x => x.OutfitItems)
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(ToPlatformOutfit)
+            .ToArray();
+    }
 
     public IReadOnlyCollection<PlatformOutfit> GetOutfitsByStatus(string status)
-        => _outfits.Values.Where(x => x.ModerationStatus.Equals(status, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(x => x.CreatedAt).ToArray();
+    {
+        var normalized = status.Trim().ToLowerInvariant();
+        return _dbContext.Outfits
+            .AsNoTracking()
+            .Include(x => x.OutfitItems)
+            .Where(x => x.ModerationStatus == normalized)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(ToPlatformOutfit)
+            .ToArray();
+    }
 
-    public PlatformOutfit? GetOutfit(Guid id) => _outfits.TryGetValue(id, out var outfit) ? outfit : null;
+    public PlatformOutfit? GetOutfit(Guid id)
+    {
+        var outfit = _dbContext.Outfits
+            .AsNoTracking()
+            .Include(x => x.OutfitItems)
+            .FirstOrDefault(x => x.Id == id);
 
-    public PlatformOutfit CreateOutfit(Guid userId, string title, string? description, string occasion, string season, string? weatherRange, IReadOnlyCollection<string> imageUrls, IReadOnlyCollection<Guid>? itemIds)
+        return outfit is null ? null : ToPlatformOutfit(outfit);
+    }
+
+    public PlatformOutfit CreateOutfit(Guid userId, string title, string? description, string occasion, string season, string? weatherRange, IReadOnlyCollection<string>? imageUrls, IReadOnlyCollection<Guid>? itemIds)
     {
         var now = DateTimeOffset.UtcNow;
-        var outfit = new PlatformOutfit(
-            Guid.NewGuid(),
-            userId,
-            title.Trim(),
-            description?.Trim(),
-            occasion.Trim().ToLowerInvariant(),
-            season.Trim().ToLowerInvariant(),
-            weatherRange?.Trim(),
-            imageUrls.ToArray(),
-            itemIds?.Distinct().ToArray() ?? [],
-            "pending",
-            now,
-            now);
+        var outfit = new Outfit
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Title = title.Trim(),
+            Description = description?.Trim(),
+            Occasion = occasion.Trim().ToLowerInvariant(),
+            Season = season.Trim().ToLowerInvariant(),
+            WeatherRange = weatherRange?.Trim(),
+            ImageUrls = imageUrls?.ToArray() ?? [],
+            ModerationStatus = "pending",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
 
-        _outfits[outfit.Id] = outfit;
-        return outfit;
+        _dbContext.Outfits.Add(outfit);
+
+        var distinctItemIds = itemIds?.Distinct().ToArray() ?? [];
+        foreach (var itemId in distinctItemIds)
+        {
+            _dbContext.OutfitItems.Add(new OutfitItem
+            {
+                Id = Guid.NewGuid(),
+                OutfitId = outfit.Id,
+                ItemId = itemId,
+                CreatedAt = now
+            });
+        }
+
+        _dbContext.SaveChanges();
+        return GetOutfit(outfit.Id)!;
     }
 
     public PlatformOutfit UpdateOutfit(Guid outfitId, Guid userId, string? title, string? description, string? occasion, string? season, string? weatherRange, IReadOnlyCollection<string>? imageUrls, IReadOnlyCollection<Guid>? itemIds)
     {
-        var existing = GetOutfit(outfitId) ?? throw new KeyNotFoundException("OUTFIT_NOT_FOUND");
-        if (existing.UserId != userId)
+        var outfit = _dbContext.Outfits.Include(x => x.OutfitItems).FirstOrDefault(x => x.Id == outfitId) ?? throw new KeyNotFoundException("OUTFIT_NOT_FOUND");
+        if (outfit.UserId != userId)
         {
             throw new UnauthorizedAccessException("FORBIDDEN");
         }
 
-        var updated = existing with
+        if (!string.IsNullOrWhiteSpace(title))
         {
-            Title = string.IsNullOrWhiteSpace(title) ? existing.Title : title.Trim(),
-            Description = description?.Trim() ?? existing.Description,
-            Occasion = string.IsNullOrWhiteSpace(occasion) ? existing.Occasion : occasion.Trim().ToLowerInvariant(),
-            Season = string.IsNullOrWhiteSpace(season) ? existing.Season : season.Trim().ToLowerInvariant(),
-            WeatherRange = weatherRange?.Trim() ?? existing.WeatherRange,
-            ImageUrls = imageUrls?.ToArray() ?? existing.ImageUrls,
-            ItemIds = itemIds?.Distinct().ToArray() ?? existing.ItemIds,
-            UpdatedAt = DateTimeOffset.UtcNow,
-            ModerationStatus = "pending"
-        };
+            outfit.Title = title.Trim();
+        }
 
-        _outfits[outfitId] = updated;
-        return updated;
+        if (description is not null)
+        {
+            outfit.Description = description.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(occasion))
+        {
+            outfit.Occasion = occasion.Trim().ToLowerInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(season))
+        {
+            outfit.Season = season.Trim().ToLowerInvariant();
+        }
+
+        if (weatherRange is not null)
+        {
+            outfit.WeatherRange = weatherRange.Trim();
+        }
+
+        if (imageUrls is not null)
+        {
+            outfit.ImageUrls = imageUrls.ToArray();
+        }
+
+        if (itemIds is not null)
+        {
+            _dbContext.OutfitItems.RemoveRange(outfit.OutfitItems);
+            foreach (var itemId in itemIds.Distinct())
+            {
+                _dbContext.OutfitItems.Add(new OutfitItem
+                {
+                    Id = Guid.NewGuid(),
+                    OutfitId = outfit.Id,
+                    ItemId = itemId,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        outfit.ModerationStatus = "pending";
+        outfit.UpdatedAt = DateTimeOffset.UtcNow;
+        _dbContext.SaveChanges();
+        return GetOutfit(outfit.Id)!;
     }
 
     public bool DeleteOutfit(Guid outfitId, Guid userId)
     {
-        var existing = GetOutfit(outfitId);
-        if (existing is null || existing.UserId != userId)
+        var outfit = _dbContext.Outfits.Include(x => x.OutfitItems).FirstOrDefault(x => x.Id == outfitId);
+        if (outfit is null || outfit.UserId != userId)
         {
             return false;
         }
 
-        return _outfits.TryRemove(outfitId, out _);
+        _dbContext.OutfitItems.RemoveRange(outfit.OutfitItems);
+        _dbContext.Outfits.Remove(outfit);
+        _dbContext.SaveChanges();
+        return true;
     }
 
     public PlatformRecommendationLog CreateRecommendationLog(Guid userId, IReadOnlyCollection<Guid> itemIds, string occasion, string season, string weather, IReadOnlyCollection<string>? styleHints, int latencyMs, IReadOnlyCollection<Guid> resultOutfitIds)
     {
-        var log = new PlatformRecommendationLog(
-            Guid.NewGuid(),
-            userId,
-            itemIds.ToArray(),
-            new PlatformRecommendationContext(occasion, season, weather, styleHints?.ToArray() ?? []),
-            resultOutfitIds.ToArray(),
-            latencyMs,
-            DateTimeOffset.UtcNow);
+        var log = new RecommendationLog
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            InputItemIds = itemIds.ToArray(),
+            Occasion = occasion,
+            Season = season,
+            Weather = weather,
+            StyleHints = styleHints?.ToArray() ?? [],
+            ResultOutfitIds = resultOutfitIds.ToArray(),
+            LatencyMs = latencyMs,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
 
-        _recommendationLogs[log.Id] = log;
-        return log;
+        _dbContext.RecommendationLogs.Add(log);
+        _dbContext.SaveChanges();
+        return ToPlatformRecommendationLog(log);
     }
 
-    public PlatformRecommendationLog? GetRecommendationLog(Guid id) => _recommendationLogs.TryGetValue(id, out var log) ? log : null;
+    public PlatformRecommendationLog? GetRecommendationLog(Guid id)
+    {
+        var log = _dbContext.RecommendationLogs.AsNoTracking().FirstOrDefault(x => x.Id == id);
+        return log is null ? null : ToPlatformRecommendationLog(log);
+    }
 
     public PlatformFeedback CreateFeedback(Guid userId, Guid recommendationId, bool helpful, string? reason)
     {
-        if (!_recommendationLogs.ContainsKey(recommendationId))
+        var exists = _dbContext.RecommendationLogs.Any(x => x.Id == recommendationId);
+        if (!exists)
         {
             throw new KeyNotFoundException("RECOMMENDATION_NOT_FOUND");
         }
 
-        var feedback = new PlatformFeedback(Guid.NewGuid(), userId, recommendationId, helpful, reason?.Trim(), DateTimeOffset.UtcNow);
-        _feedback[feedback.Id] = feedback;
-        return feedback;
+        var feedback = new Feedback
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            RecommendationId = recommendationId,
+            Helpful = helpful,
+            Reason = reason?.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        _dbContext.Feedbacks.Add(feedback);
+        _dbContext.SaveChanges();
+        return new PlatformFeedback(feedback.Id, feedback.UserId, feedback.RecommendationId, feedback.Helpful, feedback.Reason, feedback.CreatedAt);
     }
 
     public PlatformOutfit ModerateOutfit(Guid outfitId, Guid operatorUserId, string action, string? note)
     {
-        var existing = GetOutfit(outfitId) ?? throw new KeyNotFoundException("OUTFIT_NOT_FOUND");
-        var status = action.Equals("approve", StringComparison.OrdinalIgnoreCase) ? "approved" : "rejected";
-        var updated = existing with { ModerationStatus = status, UpdatedAt = DateTimeOffset.UtcNow };
-        _outfits[outfitId] = updated;
-        _moderationActions.Add(new PlatformModerationAction(Guid.NewGuid(), "outfit", outfitId, action, operatorUserId, note, DateTimeOffset.UtcNow));
-        return updated;
+        var outfit = _dbContext.Outfits.Include(x => x.OutfitItems).FirstOrDefault(x => x.Id == outfitId) ?? throw new KeyNotFoundException("OUTFIT_NOT_FOUND");
+        outfit.ModerationStatus = action.Equals("approve", StringComparison.OrdinalIgnoreCase) ? "approved" : "rejected";
+        outfit.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _dbContext.ModerationActions.Add(new ModerationAction
+        {
+            Id = Guid.NewGuid(),
+            TargetType = "outfit",
+            TargetId = outfitId,
+            Action = action.Equals("approve", StringComparison.OrdinalIgnoreCase) ? "approve" : "reject",
+            OperatorUserId = operatorUserId,
+            Note = note,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        _dbContext.SaveChanges();
+        return ToPlatformOutfit(outfit);
     }
 
     public IReadOnlyCollection<PlatformUser> GetUsers(int page, int pageSize)
-    {
-        return _users.Values
+        => _dbContext.Users.AsNoTracking()
             .OrderBy(x => x.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(ToPlatformUser)
             .ToArray();
-    }
 
-    public int GetUsersTotal() => _users.Count;
+    public int GetUsersTotal() => _dbContext.Users.Count();
 
     public PlatformUser UpdateUserStatus(Guid userId, string status, Guid operatorUserId)
     {
-        var existing = GetUserById(userId) ?? throw new KeyNotFoundException("USER_NOT_FOUND");
-        var updated = existing with { Status = status, UpdatedAt = DateTimeOffset.UtcNow };
-        _users[userId] = updated;
-        _moderationActions.Add(new PlatformModerationAction(
-            Guid.NewGuid(),
-            "user",
-            userId,
-            status == "banned" ? "ban" : "unban",
-            operatorUserId,
-            null,
-            DateTimeOffset.UtcNow));
-        return updated;
+        var user = _dbContext.Users.FirstOrDefault(x => x.Id == userId) ?? throw new KeyNotFoundException("USER_NOT_FOUND");
+        user.Status = status;
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _dbContext.ModerationActions.Add(new ModerationAction
+        {
+            Id = Guid.NewGuid(),
+            TargetType = "user",
+            TargetId = userId,
+            Action = status == "banned" ? "ban" : "unban",
+            OperatorUserId = operatorUserId,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        _dbContext.SaveChanges();
+        return ToPlatformUser(user);
     }
+
+    private void EnsureSeedData()
+    {
+        if (_dbContext.Users.Any())
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        _dbContext.Users.Add(new User
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            Email = "admin@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+            DisplayName = "Admin",
+            Role = "admin",
+            Status = "active",
+            StylePreferences = [],
+            Locale = "zh-TW",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+
+        _dbContext.SaveChanges();
+    }
+
+    private static PlatformUser ToPlatformUser(User user)
+        => new(user.Id, user.Email, user.PasswordHash, user.DisplayName, user.Role, user.Status, user.StylePreferences, user.Locale, user.CreatedAt, user.UpdatedAt);
+
+    private static PlatformItem ToPlatformItem(WardrobeItem item)
+        => new(item.Id, item.UserId, item.Name, item.Category, item.Color, item.StyleTags, item.ImageUrl, item.Status, item.CreatedAt, item.UpdatedAt);
+
+    private static PlatformOutfit ToPlatformOutfit(Outfit outfit)
+        => new(
+            outfit.Id,
+            outfit.UserId,
+            outfit.Title,
+            outfit.Description,
+            outfit.Occasion,
+            outfit.Season,
+            outfit.WeatherRange,
+            outfit.ImageUrls,
+            outfit.OutfitItems.Select(x => x.ItemId).ToArray(),
+            outfit.ModerationStatus,
+            outfit.CreatedAt,
+            outfit.UpdatedAt);
+
+    private static PlatformRecommendationLog ToPlatformRecommendationLog(RecommendationLog log)
+        => new(
+            log.Id,
+            log.UserId,
+            log.InputItemIds,
+            new PlatformRecommendationContext(log.Occasion, log.Season, log.Weather, log.StyleHints),
+            log.ResultOutfitIds,
+            log.LatencyMs,
+            log.CreatedAt);
 }
 
 public sealed record PlatformUser(
     Guid Id,
     string Email,
-    string Password,
+    string PasswordHash,
     string DisplayName,
     string Role,
     string Status,
@@ -321,13 +571,4 @@ public sealed record PlatformFeedback(
     Guid RecommendationId,
     bool Helpful,
     string? Reason,
-    DateTimeOffset CreatedAt);
-
-public sealed record PlatformModerationAction(
-    Guid Id,
-    string TargetType,
-    Guid TargetId,
-    string Action,
-    Guid OperatorUserId,
-    string? Note,
     DateTimeOffset CreatedAt);

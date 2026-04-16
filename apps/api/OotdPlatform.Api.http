@@ -1,6 +1,122 @@
-@OotdPlatform.Api_HostAddress = http://localhost:5282
+@host = http://localhost:5050
+@baseUrl = {{host}}/api/v1
+@email = user+{{$timestamp}}@example.com
+@password = P@ssw0rd123
+@displayName = Ariel
 
-GET {{OotdPlatform.Api_HostAddress}}/weatherforecast/
+### Health
+GET {{baseUrl}}/health/live
 Accept: application/json
 
-###
+### Register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "displayName": "{{displayName}}"
+}
+
+> {%
+  client.global.set("accessToken", response.body.accessToken);
+  client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### Login admin (for moderation endpoints)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Admin123!"
+}
+
+> {%
+  client.global.set("adminAccessToken", response.body.accessToken);
+%}
+
+### Create item
+POST {{baseUrl}}/items
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "白色牛津襯衫",
+  "category": "top",
+  "color": "white",
+  "styleTags": ["minimal", "formal"],
+  "imageUrl": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
+}
+
+> {%
+  client.global.set("itemId", response.body.id);
+%}
+
+### List items
+GET {{baseUrl}}/items
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### Create outfit
+POST {{baseUrl}}/outfits
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "上班簡約通勤",
+  "description": "白襯衫搭配深藍寬褲",
+  "occasion": "work",
+  "season": "spring",
+  "weatherRange": "18-24",
+  "imageUrls": [
+    "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
+  ],
+  "itemIds": [
+    "{{itemId}}"
+  ]
+}
+
+> {%
+  client.global.set("outfitId", response.body.id);
+%}
+
+### Query recommendation
+POST {{baseUrl}}/recommendations/query
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "itemIds": ["{{itemId}}"],
+  "occasion": "work",
+  "season": "spring",
+  "weather": "22",
+  "styleHints": ["minimal", "clean"]
+}
+
+> {%
+  client.global.set("recommendationId", response.body.recommendationId);
+%}
+
+### Submit feedback
+POST {{baseUrl}}/feedback
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "recommendationId": "{{recommendationId}}",
+  "helpful": true,
+  "reason": "推薦結果符合場合"
+}
+
+### Admin moderation queue
+GET {{baseUrl}}/admin/moderation/outfits?status=pending
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### Admin approve outfit
+POST {{baseUrl}}/admin/moderation/outfits/{{outfitId}}/approve
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{}

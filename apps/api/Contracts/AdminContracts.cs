@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace OotdPlatform.Api.Contracts;
 
-public sealed record RejectOutfitRequest([property: Required, MaxLength(500)] string Reason);
+public sealed record RejectOutfitRequest([Required, MaxLength(500)] string Reason);
 
 public sealed record AdminActionResponse(bool Success);
 

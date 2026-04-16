@@ -10,6 +10,28 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+const string CorsPolicyName = "WebClientPolicy";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ??
+    [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002"
+    ];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -54,8 +76,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<GeminiService>();
-builder.Services.AddSingleton<InMemoryPlatformStore>();
-builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddScoped<CloudinaryService>();
+builder.Services.AddScoped<InMemoryPlatformStore>();
+builder.Services.AddScoped<JwtTokenService>();
 
 var app = builder.Build();
 
@@ -77,6 +100,7 @@ app.UseExceptionHandler(exceptionApp =>
     });
 });
 
+app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 

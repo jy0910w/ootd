@@ -1,17 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+namespace OotdPlatform.Api.Models;
 
-namespace OotdPlatform.Api.Models
+public sealed class Outfit
 {
-    public class Outfit
-    {
-        public int Id { get; set; }
-        public string ImageUrl { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        // 之後會由 Gemini 辨識後填入的標籤
-        public string[] Tags { get; set; } = Array.Empty<string>();
-    }
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Occasion { get; set; } = string.Empty;
+    public string Season { get; set; } = string.Empty;
+    public string? WeatherRange { get; set; }
+    public string[] ImageUrls { get; set; } = [];
+    public string ModerationStatus { get; set; } = "pending";
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public User User { get; set; } = null!;
+    public ICollection<OutfitItem> OutfitItems { get; set; } = [];
 }

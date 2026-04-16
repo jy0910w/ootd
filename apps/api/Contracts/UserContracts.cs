@@ -12,6 +12,6 @@ public sealed record UserProfileResponse(
     string Locale);
 
 public sealed record UpdateMeRequest(
-    [property: MaxLength(100)] string? DisplayName,
+    [MaxLength(100)] string? DisplayName,
     IReadOnlyCollection<string>? StylePreferences,
-    [property: MaxLength(20)] string? Locale);
+    [MaxLength(20)] string? Locale);
