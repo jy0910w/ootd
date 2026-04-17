@@ -60,7 +60,7 @@ export type CreateItemPayload = {
   imageUrl: string;
 };
 
-export type ModerationStatus = "pending" | "approved" | "rejected";
+export type ModerationStatus = "pending" | "approved" | "rejected" | "draft";
 
 export type Outfit = {
   id: string;
@@ -158,4 +158,56 @@ export type AdminUser = {
   role: UserRole | string;
   status: UserStatus | string;
   createdAt: string;
+};
+
+// ─── Visual Outfit Upload ─────────────────────────────────────────────────────
+
+export type DraftItem = {
+  id: string;
+  name: string;
+  category: string;
+  color: string;
+  styleHints: string[];
+  imageUrl: string;
+};
+
+export type OutfitUploadResponse = {
+  draftId: string;
+  imageUrl: string;
+  title: string;
+  description: string;
+  occasion: string;
+  season: string;
+  items: DraftItem[];
+};
+
+export type ConfirmItemRequest = {
+  id?: string;
+  name: string;
+  category: string;
+  color: string;
+  styleHints?: string[];
+};
+
+export type ConfirmOutfitRequest = {
+  title: string;
+  description?: string;
+  occasion: string;
+  season: string;
+  weatherRange?: string;
+  items: ConfirmItemRequest[];
+};
+
+// ─── Visual Recommendation ────────────────────────────────────────────────────
+
+export type VisualAnalysisSummary = {
+  occasion: string;
+  season: string;
+  styleHints: string[];
+  colorPalette: string;
+};
+
+export type VisualRecommendationResponse = {
+  analysis: VisualAnalysisSummary;
+  results: RecommendationResult[];
 };

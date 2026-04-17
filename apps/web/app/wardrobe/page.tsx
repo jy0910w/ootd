@@ -1,29 +1,39 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, Item } from "@/lib/api";
 import { MvpNav } from "@/components/mvp-nav";
 import { RequireAuth } from "@/components/require-auth";
 import { SessionState } from "@/lib/session";
+import { RefreshCw } from "lucide-react";
 
 export default function WardrobePage() {
   return <RequireAuth>{(session) => <WardrobeContent session={session} />}</RequireAuth>;
 }
 
+// ── Category filter options ──────────────────────────────────────────────────
+const CATEGORIES = [
+  { value: "", label: "全部" },
+  { value: "top", label: "上衣" },
+  { value: "bottom", label: "下身" },
+  { value: "outer", label: "外套" },
+  { value: "shoes", label: "鞋履" },
+  { value: "accessory", label: "配件" },
+  { value: "dress", label: "連衣裙" }
+] as const;
+
+// ── Masonry placeholder heights (cycle through) ──────────────────────────────
+const HEIGHTS = [560, 680, 500, 620, 460, 540, 580, 520];
+
 function WardrobeContent({ session }: { session: SessionState }) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
 
-  const [itemName, setItemName] = useState("白色牛津襯衫");
-  const [itemCategory, setItemCategory] = useState("top");
-  const [itemColor, setItemColor] = useState("white");
-  const [itemImageUrl, setItemImageUrl] = useState("https://images.unsplash.com/photo-1521572163474-6864f9cf17ab");
-  const [itemStyleTags, setItemStyleTags] = useState("minimal,formal");
-
-  const styleTags = useMemo(
-    () => itemStyleTags.split(",").map((x) => x.trim()).filter(Boolean),
-    [itemStyleTags]
+  const filteredItems = useMemo(
+    () => filterCategory ? items.filter((item) => item.category === filterCategory) : items,
+    [items, filterCategory]
   );
 
   const loadItems = useCallback(async () => {
@@ -43,95 +53,113 @@ function WardrobeContent({ session }: { session: SessionState }) {
     void loadItems();
   }, [loadItems]);
 
-  async function handleCreateItem(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrorMessage("");
-
-    try {
-      await api.createItem(session.accessToken, {
-        name: itemName,
-        category: itemCategory,
-        color: itemColor,
-        styleTags,
-        imageUrl: itemImageUrl
-      });
-      await loadItems();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "新增單品失敗");
-    }
-  }
-
   return (
-    <main>
-      <MvpNav
-        session={session}
-      />
+    <>
+      <MvpNav session={session} />
 
-      <section className="grid">
-        <article className="card span-4">
-          <h2>新增單品</h2>
-          <p>建立 item 後可在穿搭與推薦頁使用。</p>
-          <form className="form-grid" onSubmit={handleCreateItem}>
-            <label>
-              名稱
-              <input value={itemName} onChange={(event) => setItemName(event.target.value)} required />
-            </label>
+      {/* ── Page content ── */}
+      <div className="pt-14 min-h-screen">
+        <div className="max-w-screen-xl mx-auto px-4 md:px-8 lg:px-10">
 
-            <label>
-              品類
-              <select value={itemCategory} onChange={(event) => setItemCategory(event.target.value)}>
-                <option value="top">top</option>
-                <option value="bottom">bottom</option>
-                <option value="outer">outer</option>
-                <option value="shoes">shoes</option>
-                <option value="accessory">accessory</option>
-                <option value="dress">dress</option>
-              </select>
-            </label>
+          {/* Header */}
+          <div className="flex items-end justify-between py-8 border-b hairline mb-6">
+            <div>
+              <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-1">My Collection</p>
+              <h1 className="font-display text-5xl md:text-6xl font-light text-cream" style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
+                衣櫃
+              </h1>
+            </div>
+          </div>
 
-            <label>
-              顏色
-              <input value={itemColor} onChange={(event) => setItemColor(event.target.value)} required />
-            </label>
+          {/* Filter bar */}
+          <div className="flex items-center gap-3 pb-6 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.value}
+                type="button"
+                onClick={() => setFilterCategory(cat.value)}
+                className={`shrink-0 h-8 px-4 rounded-full text-xs tracking-wide uppercase ${filterCategory === cat.value ? "btn-primary" : "btn-ghost"}`}
+                style={{ fontSize: "10px" }}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
 
-            <label>
-              Style Tags
-              <input value={itemStyleTags} onChange={(event) => setItemStyleTags(event.target.value)} />
-            </label>
+          {/* Error */}
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded text-xs" style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}>
+              {errorMessage}
+            </div>
+          )}
 
-            <label>
-              圖片 URL
-              <input value={itemImageUrl} onChange={(event) => setItemImageUrl(event.target.value)} required />
-            </label>
-
-            <button type="submit">新增 Item</button>
-          </form>
-        </article>
-
-        <article className="card span-8">
-          <h2>我的衣櫥</h2>
-          <p>`GET /items` 清單（{loading ? "載入中..." : `共 ${items.length} 筆`}）。</p>
-          <div className="row" style={{ marginBottom: 10 }}>
-            <button className="subtle" onClick={() => void loadItems()} type="button">
+          {/* Reload */}
+          <div className="flex justify-end mb-4">
+            <button
+              type="button"
+              onClick={() => void loadItems()}
+              className="btn-ghost h-8 px-4 rounded text-xs tracking-widest uppercase flex items-center gap-1.5"
+            >
+              <RefreshCw size={12} />
               重新載入
             </button>
           </div>
-          <ul className="list">
-            {items.map((item) => (
-              <li className="item" key={item.id}>
-                <strong>{item.name}</strong>
-                <span className="muted">
-                  {item.category} / {item.color} / {item.status}
-                </span>
-                <div className="muted">id: {item.id}</div>
-              </li>
-            ))}
-            {!loading && items.length === 0 ? <li className="item muted">尚無資料，先新增第一筆單品。</li> : null}
-          </ul>
-        </article>
-      </section>
 
-      {errorMessage ? <div className="message error">{errorMessage}</div> : null}
-    </main>
+          {/* Masonry grid */}
+          {loading ? (
+            <div className="masonry pb-16">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="masonry-item">
+                  <div
+                    className="rounded"
+                    style={{ height: HEIGHTS[i % HEIGHTS.length], background: "rgba(245,240,235,0.04)" }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <p className="font-display text-3xl font-light text-cream opacity-20 mb-3" style={{ fontStyle: "italic" }}>
+                衣櫃是空的
+              </p>
+              <p className="text-xs text-cream opacity-20">上傳穿搭照後，AI 識別的單品將自動加入衣櫃</p>
+            </div>
+          ) : (
+            <div className="masonry pb-16">
+              {filteredItems.map((item, i) => (
+                <div key={item.id} className="masonry-item">
+                  <div className="item-card relative rounded overflow-hidden cursor-pointer" style={{ background: "#1a1a17" }}>
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-full block"
+                        style={{ height: HEIGHTS[i % HEIGHTS.length], objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div style={{ height: HEIGHTS[i % HEIGHTS.length], background: "#1a1a17" }} />
+                    )}
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: "linear-gradient(to top, rgba(13,13,11,0.8) 0%, transparent 50%)" }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
+                      <p className="text-xs text-cream font-medium">{item.name}</p>
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        <span className="tag-pill px-2 py-0.5 rounded-full">{item.category}</span>
+                        <span className="tag-pill px-2 py-0.5 rounded-full">{item.color}</span>
+                        {item.styleTags?.slice(0, 2).map((tag) => (
+                          <span key={tag} className="tag-pill px-2 py-0.5 rounded-full">{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

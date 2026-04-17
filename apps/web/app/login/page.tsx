@@ -8,8 +8,8 @@ import { getSession, saveSession } from "@/lib/session";
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("user@example.com");
-  const [password, setPassword] = useState("P@ssw0rd123");
+  const [email, setEmail] = useState("jyunyu@example.com");
+  const [password, setPassword] = useState("ghjk1591");
   const [displayName, setDisplayName] = useState("Ariel");
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -52,49 +52,132 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
-      <section className="hero">
-        <div>
-          <h1>OOTD Web MVP</h1>
-          <p>先登入，再開始管理衣櫥、建立穿搭與查詢推薦。</p>
+    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+      {/* Left: editorial image panel */}
+      <div style={{ position: 'relative', overflow: 'hidden' }}>
+        <img
+          src="https://placehold.co/900x1080/1a1a17/2f7a56?text=."
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(135deg, rgba(13,13,11,0.3) 0%, rgba(47,122,86,0.15) 100%)" }}
+        />
+        <div className="absolute bottom-12 left-10 right-10">
+          <p
+            className="font-display text-6xl font-light leading-none text-cream opacity-90"
+            style={{ fontStyle: "italic", letterSpacing: "-0.04em" }}
+          >
+            Your wardrobe,<br />curated.
+          </p>
+          <p className="mt-4 text-xs tracking-widest text-cream opacity-40 uppercase">
+            Outfit of the Day Platform
+          </p>
         </div>
-        <span className="pill">API Base: {process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5050/api/v1"}</span>
-      </section>
+      </div>
 
-      <section className="card login-card">
-        <h2>{mode === "login" ? "登入" : "註冊"}</h2>
-        <p>Auth 使用 `/auth/login` 與 `/auth/register`。</p>
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            Email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} required type="email" />
-          </label>
+      {/* Right: form */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem 2rem' }}>
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <p
+            className="font-display text-3xl font-light text-cream mb-2 lg:hidden"
+            style={{ letterSpacing: "-0.04em" }}
+          >
+            OOTD
+          </p>
+          <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-12 lg:hidden">
+            Outfit of the Day
+          </p>
 
-          <label>
-            Password
-            <input value={password} onChange={(event) => setPassword(event.target.value)} required type="password" />
-          </label>
+          <h1
+            className="font-display text-4xl font-light text-cream mb-1"
+            style={{ letterSpacing: "-0.03em" }}
+          >
+            {mode === "login" ? "歡迎回來" : "建立帳號"}
+          </h1>
+          <p className="text-xs text-cream opacity-40 tracking-wide mb-10">
+            {mode === "login" ? "登入你的衣櫃" : "加入 OOTD 平台"}
+          </p>
 
-          {mode === "register" ? (
-            <label>
-              Display Name
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
-            </label>
-          ) : null}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs tracking-widest text-cream opacity-40 uppercase mb-2">
+                電子信箱
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="field h-12 px-4 rounded text-sm"
+                required
+              />
+            </div>
 
-          <button type="submit" disabled={submitting}>
-            {submitting ? "送出中..." : mode === "login" ? "Login" : "Register"}
-          </button>
-        </form>
+            <div>
+              <label className="block text-xs tracking-widest text-cream opacity-40 uppercase mb-2">
+                密碼
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="field h-12 px-4 rounded text-sm"
+                required
+              />
+            </div>
 
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="subtle" onClick={() => setMode(mode === "login" ? "register" : "login")} type="button">
-            切換到 {mode === "login" ? "註冊" : "登入"}
-          </button>
+            {mode === "register" && (
+              <div>
+                <label className="block text-xs tracking-widest text-cream opacity-40 uppercase mb-2">
+                  顯示名稱
+                </label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="你的名字"
+                  className="field h-12 px-4 rounded text-sm"
+                  required
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary w-full h-12 rounded text-xs tracking-widest uppercase mt-2"
+            >
+              {submitting ? "送出中..." : mode === "login" ? "登入" : "註冊"}
+            </button>
+          </form>
+
+          {errorMessage && (
+            <div
+              className="mt-4 p-3 rounded text-xs"
+              style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}
+            >
+              {errorMessage}
+            </div>
+          )}
+
+          <div className="mt-8 pt-8 flex items-center justify-between" style={{ borderTop: "1px solid rgba(245,240,235,0.08)" }}>
+            <p className="text-xs text-cream opacity-30">
+              {mode === "login" ? "還沒有帳號？" : "已有帳號？"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setMode(mode === "login" ? "register" : "login")}
+              className="text-xs text-brand-400 hover:text-brand-300 transition-colors duration-200 tracking-wide focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand-400 rounded"
+            >
+              {mode === "login" ? "立即註冊" : "返回登入"}
+            </button>
+          </div>
         </div>
-
-        {errorMessage ? <div className="message error">{errorMessage}</div> : null}
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

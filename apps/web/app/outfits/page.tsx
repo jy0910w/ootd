@@ -1,36 +1,29 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MvpNav } from "@/components/mvp-nav";
 import { RequireAuth } from "@/components/require-auth";
-import { api, Item, Outfit } from "@/lib/api";
+import { api, Outfit } from "@/lib/api";
 import { SessionState } from "@/lib/session";
+import { Plus, RefreshCw, Trash2, Pencil } from "lucide-react";
 
 export default function OutfitsPage() {
   return <RequireAuth>{(session) => <OutfitsContent session={session} />}</RequireAuth>;
 }
 
+const STATUS_BADGE: Record<string, { bg: string; border: string; color: string; label: string }> = {
+  approved: { bg: "rgba(47,122,86,0.2)", border: "rgba(47,122,86,0.4)", color: "#7bbfa0", label: "已審核" },
+  pending:  { bg: "rgba(180,130,0,0.15)", border: "rgba(180,130,0,0.3)", color: "#c9a84c", label: "審核中" },
+  rejected: { bg: "rgba(182,59,54,0.15)", border: "rgba(182,59,54,0.3)", color: "#e07b77", label: "已拒絕" }
+};
+
 function OutfitsContent({ session }: { session: SessionState }) {
+  const router = useRouter();
   const [outfits, setOutfits] = useState<Outfit[]>([]);
-  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingItems, setLoadingItems] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [occasion, setOccasion] = useState("");
-  const [season, setSeason] = useState("");
-  const [weatherRange, setWeatherRange] = useState("");
-  const [imageUrlsRaw, setImageUrlsRaw] = useState("");
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-
-  const imageUrls = useMemo(
-    () => imageUrlsRaw.split(",").map((x) => x.trim()).filter(Boolean),
-    [imageUrlsRaw]
-  );
 
   const loadOutfits = useCallback(async () => {
     setLoading(true);
@@ -45,87 +38,15 @@ function OutfitsContent({ session }: { session: SessionState }) {
     }
   }, [session.accessToken]);
 
-  const loadItems = useCallback(async () => {
-    setLoadingItems(true);
-    try {
-      const result = await api.getItems(session.accessToken);
-      setItems(result.items);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "載入單品失敗");
-    } finally {
-      setLoadingItems(false);
-    }
-  }, [session.accessToken]);
-
   useEffect(() => {
     void loadOutfits();
-    void loadItems();
-  }, [loadItems, loadOutfits]);
-
-  function startEdit(outfit: Outfit) {
-    setEditingId(outfit.id);
-    setTitle(outfit.title);
-    setDescription(outfit.description ?? "");
-    setOccasion(outfit.occasion);
-    setSeason(outfit.season);
-    setWeatherRange(outfit.weatherRange ?? "");
-    setImageUrlsRaw(outfit.imageUrls.join(", "));
-    setSelectedItemIds(outfit.itemIds);
-    setSuccessMessage("");
-    setErrorMessage("");
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setTitle("");
-    setDescription("");
-    setOccasion("");
-    setSeason("");
-    setWeatherRange("");
-    setImageUrlsRaw("");
-    setSelectedItemIds([]);
-  }
-
-  function toggleItem(itemId: string) {
-    setSelectedItemIds((current) =>
-      current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]
-    );
-  }
-
-  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editingId) {
-      return;
-    }
-
-    setErrorMessage("");
-    setSuccessMessage("");
-    try {
-      await api.updateOutfit(session.accessToken, editingId, {
-        title,
-        description,
-        occasion,
-        season,
-        weatherRange,
-        imageUrls,
-        itemIds: selectedItemIds
-      });
-      setSuccessMessage("穿搭更新成功，已回到 pending 審核狀態。");
-      cancelEdit();
-      await loadOutfits();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "更新穿搭失敗");
-    }
-  }
+  }, [loadOutfits]);
 
   async function handleDelete(outfitId: string) {
     setErrorMessage("");
     setSuccessMessage("");
     try {
       await api.deleteOutfit(session.accessToken, outfitId);
-      if (editingId === outfitId) {
-        cancelEdit();
-      }
       setSuccessMessage("穿搭已刪除。");
       await loadOutfits();
     } catch (error) {
@@ -134,116 +55,162 @@ function OutfitsContent({ session }: { session: SessionState }) {
   }
 
   return (
-    <main>
+    <>
       <MvpNav session={session} />
 
-      <section className="grid">
-        <article className="card span-7">
-          <h2>我的穿搭</h2>
-          <p>`GET /outfits/mine`（{loading ? "載入中..." : `共 ${outfits.length} 筆`}）。</p>
-          <div className="row" style={{ marginBottom: 10 }}>
-            <button className="subtle" type="button" onClick={() => void loadOutfits()}>
+      <div className="pt-14 min-h-screen">
+        <div className="max-w-screen-xl mx-auto px-4 md:px-8 lg:px-10">
+
+          {/* Header */}
+          <div className="flex items-end justify-between py-8 border-b hairline mb-8">
+            <div>
+              <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-1">Lookbook</p>
+              <h1 className="font-display text-5xl md:text-6xl font-light text-cream" style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
+                穿搭
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/outfits/new")}
+              className="btn-primary h-10 px-6 rounded text-xs tracking-widest uppercase flex items-center gap-2"
+            >
+              <Plus size={14} />
+              新建穿搭
+            </button>
+          </div>
+
+          {/* Messages */}
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded text-xs" style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}>
+              {errorMessage}
+            </div>
+          )}
+          {successMessage && (
+            <div className="mb-4 p-3 rounded text-xs" style={{ background: "rgba(47,122,86,0.1)", border: "1px solid rgba(47,122,86,0.25)", color: "#7bbfa0" }}>
+              {successMessage}
+            </div>
+          )}
+
+          {/* Reload */}
+          <div className="flex justify-end mb-4">
+            <button
+              type="button"
+              onClick={() => void loadOutfits()}
+              className="btn-ghost h-8 px-4 rounded text-xs tracking-widest uppercase flex items-center gap-1.5"
+            >
+              <RefreshCw size={12} />
               重新載入
             </button>
           </div>
 
-          <ul className="list">
-            {outfits.map((outfit) => (
-              <li className="item" key={outfit.id}>
-                <strong>{outfit.title}</strong>
-                <span className="muted">
-                  {outfit.occasion} / {outfit.season} / {outfit.moderationStatus}
-                </span>
-                <div className="muted">images: {outfit.imageUrls.length} / items: {outfit.itemIds.length}</div>
-                <div className="muted">id: {outfit.id}</div>
-                <div className="row" style={{ marginTop: 8 }}>
-                  <button className="subtle" type="button" onClick={() => startEdit(outfit)}>
-                    編輯
-                  </button>
-                  <button className="danger" type="button" onClick={() => void handleDelete(outfit.id)}>
-                    刪除
-                  </button>
-                </div>
-              </li>
-            ))}
-            {!loading && outfits.length === 0 ? (
-              <li className="item muted">尚無穿搭，先到 New Outfit 建立第一筆。</li>
-            ) : null}
-          </ul>
-        </article>
-
-        <article className="card span-5">
-          <h2>編輯穿搭</h2>
-          <p>送 `PATCH /outfits/{'{id}'}`。修改後會重新進入 pending。</p>
-          {!editingId ? (
-            <div className="item muted">請先從左側清單選擇一筆穿搭。</div>
+          {/* Outfits grid */}
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-16">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded" style={{ aspectRatio: "3/4", background: "rgba(245,240,235,0.04)" }} />
+              ))}
+            </div>
+          ) : outfits.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <p className="font-display text-3xl font-light text-cream opacity-20 mb-3" style={{ fontStyle: "italic" }}>
+                還沒有穿搭
+              </p>
+              <p className="text-xs text-cream opacity-20 mb-6">建立你的第一套穿搭組合</p>
+              <button
+                type="button"
+                onClick={() => router.push("/outfits/new")}
+                className="btn-primary h-10 px-6 rounded text-xs tracking-widest uppercase"
+              >
+                新建穿搭
+              </button>
+            </div>
           ) : (
-            <form className="form-grid" onSubmit={handleUpdate}>
-              <label>
-                標題
-                <input value={title} onChange={(event) => setTitle(event.target.value)} required />
-              </label>
-              <label>
-                描述
-                <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} />
-              </label>
-              <div className="grid-two">
-                <label>
-                  Occasion
-                  <input value={occasion} onChange={(event) => setOccasion(event.target.value)} required />
-                </label>
-                <label>
-                  Season
-                  <input value={season} onChange={(event) => setSeason(event.target.value)} required />
-                </label>
-              </div>
-              <label>
-                Weather Range
-                <input value={weatherRange} onChange={(event) => setWeatherRange(event.target.value)} />
-              </label>
-              <label>
-                Image URLs (comma separated)
-                <input value={imageUrlsRaw} onChange={(event) => setImageUrlsRaw(event.target.value)} required />
-              </label>
-
-              <fieldset className="fieldset">
-                <legend>綁定單品</legend>
-                {loadingItems ? <p className="muted">載入單品中...</p> : null}
-                {!loadingItems && items.length === 0 ? (
-                  <p className="muted">目前尚無單品，請先到 Wardrobe 新增。</p>
-                ) : null}
-                <p className="muted">已選 {selectedItemIds.length} 件</p>
-                <div className="checkbox-list">
-                  {items.map((item) => (
-                    <label className="checkbox-item" key={item.id}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItemIds.includes(item.id)}
-                        onChange={() => toggleItem(item.id)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-16">
+              {outfits.map((outfit) => {
+                const badge = STATUS_BADGE[outfit.moderationStatus] ?? STATUS_BADGE.pending;
+                const coverUrl = outfit.imageUrls?.[0];
+                return (
+                  <div key={outfit.id} className="outfit-card relative rounded overflow-hidden cursor-pointer" style={{ aspectRatio: "3/4", background: "#1a1a17" }}>
+                    {coverUrl ? (
+                      <img
+                        src={coverUrl}
+                        alt={outfit.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
-                      <span>
-                        {item.name} ({item.category}/{item.color})
+                    ) : (
+                      <div className="absolute inset-0" style={{ background: "#1a1a17" }} />
+                    )}
+                    <div
+                      className="absolute inset-0"
+                      style={{ background: "linear-gradient(to top, rgba(13,13,11,0.9) 0%, rgba(13,13,11,0.1) 60%, transparent 100%)" }}
+                    />
+
+                    {/* Hover overlay */}
+                    <div
+                      className="outfit-overlay absolute inset-0 flex flex-col items-end justify-start gap-2 p-3"
+                      style={{ background: "rgba(13,13,11,0.4)" }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/outfits?edit=${outfit.id}`)}
+                        className="btn-ghost w-8 h-8 rounded flex items-center justify-center"
+                        title="編輯"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(outfit.id)}
+                        className="btn-ghost w-8 h-8 rounded flex items-center justify-center"
+                        title="刪除"
+                        style={{ color: "#e07b77" }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
+                    {/* Status badge */}
+                    <div className="absolute top-3 right-3">
+                      <span
+                        className="px-2 py-0.5 rounded-full"
+                        style={{
+                          background: badge.bg,
+                          border: `1px solid ${badge.border}`,
+                          color: badge.color,
+                          fontSize: "9px",
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase"
+                        }}
+                      >
+                        {badge.label}
                       </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+                    </div>
 
-              <div className="row">
-                <button type="submit" disabled={imageUrls.length === 0}>
-                  更新 Outfit
-                </button>
-                <button className="subtle" type="button" onClick={cancelEdit}>
-                  取消
-                </button>
-              </div>
-            </form>
+                    {/* Info */}
+                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                      <p className="font-display text-2xl font-light text-cream" style={{ fontStyle: "italic", letterSpacing: "-0.02em" }}>
+                        {outfit.title}
+                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex gap-1.5 flex-wrap">
+                          {outfit.occasion && (
+                            <span className="tag-pill px-2 py-0.5 rounded-full">{outfit.occasion}</span>
+                          )}
+                          {outfit.season && (
+                            <span className="tag-pill px-2 py-0.5 rounded-full">{outfit.season}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-cream opacity-30">{outfit.itemIds?.length ?? 0} 件</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </article>
-      </section>
-
-      {successMessage ? <div className="message">{successMessage}</div> : null}
-      {errorMessage ? <div className="message error">{errorMessage}</div> : null}
-    </main>
+        </div>
+      </div>
+    </>
   );
 }

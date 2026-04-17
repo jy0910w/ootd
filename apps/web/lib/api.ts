@@ -1,27 +1,28 @@
 import type {
   ApiError,
   AuthResult,
+  ConfirmOutfitRequest,
   CreateFeedbackPayload,
   CreateFeedbackResult,
-  CreateItemPayload,
-  CreateOutfitPayload,
-  CreateOutfitResult,
   Item,
   Outfit,
+  OutfitUploadResponse,
   PagedResponse,
   RecommendationDetail,
   RecommendationQueryPayload,
   RecommendationQueryResult,
-  UpdateOutfitPayload
+  UpdateOutfitPayload,
+  VisualRecommendationResponse
 } from "@ootd/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5050/api/v1";
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {})
     },
@@ -58,14 +59,30 @@ export const api = {
   getItems(token: string) {
     return request<PagedResponse<Item>>("/items", {}, token);
   },
-  createItem(
-    token: string,
-    payload: CreateItemPayload
-  ) {
-    return request<Item>("/items", {
+  /** Step 1：上傳穿搭圖片 → AI 識別 → 回傳草稿 */
+  uploadOutfit(token: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    return request<OutfitUploadResponse>("/outfits/upload", {
+      method: "POST",
+      body: form
+    }, token);
+  },
+  /** Step 2：確認/編輯草稿 → 建立正式 Outfit */
+  confirmOutfit(token: string, draftId: string, payload: ConfirmOutfitRequest) {
+    return request<Outfit>(`/outfits/${draftId}/confirm`, {
       method: "POST",
       body: JSON.stringify(payload)
     }, token);
+  },
+  /** 公開視覺推薦（不需登入，Rate Limit: 20/hr/IP） */
+  visualRecommend(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    return request<VisualRecommendationResponse>("/recommendations/visual", {
+      method: "POST",
+      body: form
+    });
   },
   queryRecommendation(
     token: string,
@@ -78,12 +95,6 @@ export const api = {
   },
   getRecommendationDetail(token: string, recommendationId: string) {
     return request<RecommendationDetail>(`/recommendations/${recommendationId}`, {}, token);
-  },
-  createOutfit(token: string, payload: CreateOutfitPayload) {
-    return request<CreateOutfitResult>("/outfits", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }, token);
   },
   getMyOutfits(token: string) {
     return request<PagedResponse<Outfit>>("/outfits/mine", {}, token);
@@ -109,15 +120,15 @@ export const api = {
 
 export type {
   AuthResult,
+  ConfirmOutfitRequest,
   CreateFeedbackPayload,
   CreateFeedbackResult,
-  CreateItemPayload,
-  CreateOutfitPayload,
-  CreateOutfitResult,
   Item,
   Outfit,
+  OutfitUploadResponse,
   RecommendationDetail,
   RecommendationQueryPayload,
   RecommendationQueryResult,
-  UpdateOutfitPayload
+  UpdateOutfitPayload,
+  VisualRecommendationResponse
 };

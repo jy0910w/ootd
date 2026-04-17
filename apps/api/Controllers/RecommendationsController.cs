@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using OotdPlatform.Api.Contracts;
 using OotdPlatform.Api.Services;
 using System.Security.Claims;
@@ -12,10 +13,64 @@ namespace OotdPlatform.Api.Controllers;
 public sealed class RecommendationsController : ControllerBase
 {
     private readonly InMemoryPlatformStore _store;
+    private readonly CloudinaryService _cloudinary;
+    private readonly GeminiService _gemini;
 
-    public RecommendationsController(InMemoryPlatformStore store)
+    public RecommendationsController(InMemoryPlatformStore store, CloudinaryService cloudinary, GeminiService gemini)
     {
         _store = store;
+        _cloudinary = cloudinary;
+        _gemini = gemini;
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("VisualRecommendation")]
+    [HttpPost("visual")]
+    public async Task<ActionResult<VisualRecommendationResponse>> Visual([FromForm] IFormFile file)
+    {
+        CloudinaryUploadResult uploaded;
+        try
+        {
+            uploaded = await _cloudinary.UploadImageAsync(file, "ootd/visual-search");
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiErrorResponse("UPLOAD_INVALID", ex.Message, null, HttpContext.TraceIdentifier));
+        }
+
+        VisualContext context;
+        try
+        {
+            context = await _gemini.ExtractVisualContextAsync(uploaded.Url);
+        }
+        catch (Exception)
+        {
+            context = new VisualContext("casual", "all-season", [], "mixed");
+        }
+
+        var occasion = context.Occasion.Trim().ToLowerInvariant();
+        var season = context.Season.Trim().ToLowerInvariant();
+        var styleHints = context.StyleHints
+            .Select(h => h.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidates = _store.GetOutfitsByStatus("approved").ToArray();
+        var scored = candidates
+            .Select(outfit => (outfit, score: ScoreOutfit(outfit, occasion, season, "any", styleHints, [], [], [])))
+            .Where(x => x.score.Total > 0)
+            .OrderByDescending(x => x.score.Total)
+            .Take(10)
+            .ToArray();
+
+        var results = scored
+            .Select(x => new RecommendationResult(
+                x.outfit.Id,
+                Math.Round(x.score.Total, 2),
+                x.score.Reasons))
+            .ToArray();
+
+        var analysis = new VisualAnalysisSummary(context.Occasion, context.Season, context.StyleHints, context.ColorPalette);
+        return Ok(new VisualRecommendationResponse(analysis, results));
     }
 
     [HttpPost("query")]

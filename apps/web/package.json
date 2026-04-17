@@ -9,6 +9,7 @@
     "lint": "node ./scripts/next-safe-runner.mjs lint"
   },
   "dependencies": {
+    "lucide-react": "^1.8.0",
     "next": "15.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"
@@ -17,8 +18,11 @@
     "@types/node": "22.15.29",
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
+    "autoprefixer": "^10.5.0",
     "eslint": "9.28.0",
     "eslint-config-next": "15.3.2",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.19",
     "typescript": "5.8.3"
   }
 }

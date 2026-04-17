@@ -1,243 +1,242 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api, Item, RecommendationDetail, RecommendationQueryResult } from "@/lib/api";
+import { ChangeEvent, useRef, useState } from "react";
+import { api, VisualRecommendationResponse } from "@/lib/api";
 import { RequireAuth } from "@/components/require-auth";
 import { MvpNav } from "@/components/mvp-nav";
 import { SessionState } from "@/lib/session";
+import { Upload, Sparkles, X } from "lucide-react";
 
 export default function RecommendationsPage() {
   return <RequireAuth>{(session) => <RecommendationsContent session={session} />}</RequireAuth>;
 }
 
+const DUMMY_CARDS = [
+  { idx: "01", title: "街頭休閒組合", desc: "白色 Tee × 牛仔外套 × 黑色長褲 × 白色運動鞋", tags: ["#街頭", "#休閒"] },
+  { idx: "02", title: "自然系層搭", desc: "森林綠針織 × 米色風衣 × 黑色長褲", tags: ["#自然", "#層搭"] },
+  { idx: "03", title: "極簡黑白", desc: "白色 Tee × 黑色長褲 × 白色運動鞋", tags: ["#極簡", "#黑白"] }
+];
+
 function RecommendationsContent({ session }: { session: SessionState }) {
-  const [items, setItems] = useState<Item[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [recommendation, setRecommendation] = useState<RecommendationQueryResult | null>(null);
-  const [recommendationDetail, setRecommendationDetail] = useState<RecommendationDetail | null>(null);
-  const [detailIdInput, setDetailIdInput] = useState("");
-  const [loadingDetail, setLoadingDetail] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<VisualRecommendationResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
 
-  const [occasion, setOccasion] = useState("work");
-  const [season, setSeason] = useState("spring");
-  const [weather, setWeather] = useState("23");
-  const [styleHintsRaw, setStyleHintsRaw] = useState("minimal,clean");
-  const [feedbackReason, setFeedbackReason] = useState("配色有參考價值");
-
-  const styleHints = useMemo(
-    () => styleHintsRaw.split(",").map((x) => x.trim()).filter(Boolean),
-    [styleHintsRaw]
-  );
-
-  useEffect(() => {
-    async function loadItems() {
-      try {
-        const result = await api.getItems(session.accessToken);
-        setItems(result.items);
-        setSelectedItemIds(result.items.slice(0, 1).map((item) => item.id));
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "載入單品失敗");
-      }
-    }
-
-    void loadItems();
-  }, [session.accessToken]);
-
-  function toggleItem(itemId: string) {
-    setSelectedItemIds((current) =>
-      current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]
-    );
-  }
-
-  async function handleQuery(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    setResult(null);
     setErrorMessage("");
-    setFeedbackMessage("");
-
-    try {
-      const result = await api.queryRecommendation(session.accessToken, {
-        itemIds: selectedItemIds,
-        occasion,
-        season,
-        weather,
-        styleHints
-      });
-      setRecommendation(result);
-      setDetailIdInput(result.recommendationId);
-      await loadRecommendationDetail(result.recommendationId);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "推薦查詢失敗");
-    }
   }
 
-  async function loadRecommendationDetail(recommendationId: string) {
-    if (!recommendationId.trim()) {
-      return;
-    }
+  function clearFile() {
+    setPreviewUrl(null);
+    setSelectedFile(null);
+    setResult(null);
+    setErrorMessage("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
-    setLoadingDetail(true);
+  async function handleAnalyze() {
+    if (!selectedFile) return;
+    setLoading(true);
+    setErrorMessage("");
     try {
-      const detail = await api.getRecommendationDetail(session.accessToken, recommendationId.trim());
-      setRecommendationDetail(detail);
+      const data = await api.visualRecommend(selectedFile);
+      setResult(data);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "推薦查詢失敗");
     } finally {
-      setLoadingDetail(false);
-    }
-  }
-
-  async function handleDetailLookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrorMessage("");
-    setFeedbackMessage("");
-
-    try {
-      await loadRecommendationDetail(detailIdInput);
-    } catch (error) {
-      setRecommendationDetail(null);
-      setErrorMessage(error instanceof Error ? error.message : "查詢推薦明細失敗");
-    }
-  }
-
-  async function sendFeedback(helpful: boolean) {
-    if (!recommendation?.recommendationId) {
-      return;
-    }
-
-    setErrorMessage("");
-    setFeedbackMessage("");
-    try {
-      await api.createFeedback(session.accessToken, {
-        recommendationId: recommendation.recommendationId,
-        helpful,
-        reason: feedbackReason
-      });
-      setFeedbackMessage(helpful ? "已送出有幫助回饋" : "已送出需改進回饋");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "送出回饋失敗");
+      setLoading(false);
     }
   }
 
   return (
-    <main>
+    <>
       <MvpNav session={session} />
 
-      <section className="grid">
-        <article className="card span-5">
-          <h2>查詢推薦</h2>
-          <p>送 `POST /recommendations/query`。</p>
-          <form className="form-grid" onSubmit={handleQuery}>
-            <fieldset className="fieldset">
-              <legend>選擇單品（至少 1 筆）</legend>
-              <div className="checkbox-list">
-                {items.map((item) => (
-                  <label className="checkbox-item" key={item.id}>
-                    <input
-                      type="checkbox"
-                      checked={selectedItemIds.includes(item.id)}
-                      onChange={() => toggleItem(item.id)}
-                    />
-                    <span>
-                      {item.name} ({item.category}/{item.color})
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {items.length === 0 ? <p className="muted">尚無單品，請先到 Wardrobe 新增資料。</p> : null}
-            </fieldset>
+      <div className="pt-14 min-h-screen">
+        <div className="max-w-screen-xl mx-auto px-4 md:px-8 lg:px-10">
 
-            <label>
-              Occasion
-              <input value={occasion} onChange={(event) => setOccasion(event.target.value)} required />
-            </label>
+          {/* Header */}
+          <div className="py-8 border-b hairline mb-8">
+            <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-1">AI Stylist</p>
+            <h1 className="font-display text-5xl md:text-6xl font-light text-cream" style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
+              穿搭推薦
+            </h1>
+          </div>
 
-            <label>
-              Season
-              <input value={season} onChange={(event) => setSeason(event.target.value)} required />
-            </label>
-
-            <label>
-              Weather
-              <input value={weather} onChange={(event) => setWeather(event.target.value)} required />
-            </label>
-
-            <label>
-              Style hints
-              <input value={styleHintsRaw} onChange={(event) => setStyleHintsRaw(event.target.value)} />
-            </label>
-
-            <button type="submit" disabled={selectedItemIds.length === 0}>
-              查詢 Recommendation
-            </button>
-          </form>
-        </article>
-
-        <article className="card span-7">
-          <h2>推薦結果</h2>
-          {recommendation ? (
-            <>
-              <div className="message">recommendationId: {recommendation.recommendationId}</div>
-              <ul className="list">
-                {recommendation.results.map((result) => (
-                  <li className="item" key={result.outfitId}>
-                    <strong>outfitId: {result.outfitId}</strong>
-                    <span className="muted">score: {result.score}</span>
-                    <div className="muted">{result.reasons.join(" / ")}</div>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="feedback-box">
-                <h3>回饋這次推薦</h3>
-                <label>
-                  原因
-                  <input value={feedbackReason} onChange={(event) => setFeedbackReason(event.target.value)} />
-                </label>
-                <div className="row">
-                  <button type="button" onClick={() => void sendFeedback(true)}>
-                    有幫助
-                  </button>
-                  <button type="button" className="subtle" onClick={() => void sendFeedback(false)}>
-                    需改進
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="item muted">尚未查詢推薦。</div>
+          {/* Messages */}
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded text-xs" style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}>
+              {errorMessage}
+            </div>
           )}
 
-          <div className="feedback-box">
-            <h3>推薦明細查詢</h3>
-            <p className="muted">支援貼上舊的 recommendationId 查詢明細（`GET /recommendations/{'{id}'}`）。</p>
-            <form className="form-grid" onSubmit={handleDetailLookup}>
-              <label>
-                Recommendation ID
-                <input value={detailIdInput} onChange={(event) => setDetailIdInput(event.target.value)} required />
-              </label>
-              <button type="submit" disabled={loadingDetail}>
-                {loadingDetail ? "查詢中..." : "查詢明細"}
-              </button>
-            </form>
+          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 pb-16">
 
-            {recommendationDetail ? (
-              <div className="item" style={{ marginTop: 10 }}>
-                <strong>detailId: {recommendationDetail.id}</strong>
-                <div className="muted">userId: {recommendationDetail.userId}</div>
-                <div className="muted">inputItemIds: {recommendationDetail.inputItemIds.join(", ") || "(none)"}</div>
-                <div className="muted">resultOutfitIds: {recommendationDetail.resultOutfitIds.join(", ") || "(none)"}</div>
-                <div className="muted">context: {recommendationDetail.context.occasion} / {recommendationDetail.context.season} / {recommendationDetail.context.weather}</div>
-                <div className="muted">styleHints: {recommendationDetail.context.styleHints.join(" / ") || "(none)"}</div>
-                <div className="muted">latency: {recommendationDetail.latencyMs} ms</div>
-                <div className="muted">createdAt: {new Date(recommendationDetail.createdAt).toLocaleString()}</div>
+            {/* Left: upload panel */}
+            <div className="space-y-6">
+              <div
+                className="rounded p-5"
+                style={{ background: "rgba(26,26,23,0.8)", border: "1px solid rgba(245,240,235,0.06)" }}
+              >
+                <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-4">上傳穿搭照</p>
+
+                {/* Drop zone */}
+                <label className={`block rounded-lg cursor-pointer transition-all ${previewUrl ? "" : "dropzone p-10 text-center"}`}
+                  style={previewUrl ? {} : { border: "1px dashed rgba(245,240,235,0.12)" }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  {previewUrl ? (
+                    <div className="relative rounded overflow-hidden" style={{ aspectRatio: "3/4", maxHeight: 260 }}>
+                      <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center btn-ghost"
+                        onClick={(e) => { e.preventDefault(); clearFile(); }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload size={28} className="mx-auto mb-3 text-cream opacity-20" />
+                      <p className="text-sm text-cream opacity-40 mb-1">上傳穿搭照</p>
+                      <p className="text-xs text-cream opacity-20">JPG、PNG、WEBP</p>
+                    </>
+                  )}
+                </label>
+
+                <button
+                  type="button"
+                  disabled={!selectedFile || loading}
+                  onClick={() => void handleAnalyze()}
+                  className="btn-primary w-full h-10 rounded mt-4 text-xs tracking-widest uppercase flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <Sparkles size={12} />
+                  {loading ? "AI 分析中..." : "查詢推薦"}
+                </button>
               </div>
-            ) : null}
-          </div>
-        </article>
-      </section>
 
-      {feedbackMessage ? <div className="message">{feedbackMessage}</div> : null}
-      {errorMessage ? <div className="message error">{errorMessage}</div> : null}
-    </main>
+              {/* Analysis summary */}
+              {result && (
+                <div
+                  className="rounded p-5"
+                  style={{ background: "rgba(47,122,86,0.08)", border: "1px solid rgba(47,122,86,0.18)" }}
+                >
+                  <p className="text-xs tracking-widest text-brand-400 uppercase mb-3">AI 分析結果</p>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="tag-pill px-2 py-0.5 rounded-full text-xs">{result.analysis.occasion}</span>
+                    <span className="tag-pill px-2 py-0.5 rounded-full text-xs">{result.analysis.season}</span>
+                    {result.analysis.styleHints.map((h) => (
+                      <span key={h} className="tag-pill px-2 py-0.5 rounded-full text-xs">{h}</span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-cream opacity-30">{result.analysis.colorPalette}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right: results */}
+            <div>
+              {result ? (
+                result.results.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <p className="font-display text-3xl font-light text-cream opacity-20 mb-2" style={{ fontStyle: "italic" }}>
+                      尚無符合推薦
+                    </p>
+                    <p className="text-xs text-cream opacity-20">資料庫中暫無符合此風格的穿搭</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {result.results.map((r, i) => (
+                      <div
+                        key={r.outfitId}
+                        className="rec-card rounded overflow-hidden"
+                        style={{ background: "#1a1a17", border: "1px solid rgba(245,240,235,0.06)" }}
+                      >
+                        <div className="relative" style={{ height: "220px" }}>
+                          <img
+                            src={`https://placehold.co/500x625/1a1a17/2f7a56?text=.`}
+                            alt={`推薦穿搭 ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(13,13,11,0.7) 0%, transparent 60%)" }} />
+                          <div className="absolute top-3 left-3">
+                            <span className="font-display text-4xl font-light text-cream opacity-20" style={{ lineHeight: 1 }}>
+                              {String(i + 1).padStart(2, "0")}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <p className="font-display text-xl font-light text-cream" style={{ fontStyle: "italic" }}>
+                            穿搭組合 {i + 1}
+                          </p>
+                          <p className="text-xs text-cream opacity-40 mt-1 leading-relaxed">
+                            {r.reasons.join("、") || "AI 智慧推薦"}
+                          </p>
+                          <p className="text-xs text-cream opacity-20 mt-1">Score: {r.score.toFixed(2)}</p>
+                          <div className="flex gap-2 mt-4 pt-4 border-t hairline">
+                            <button className="btn-primary flex-1 h-9 rounded text-xs tracking-widest uppercase">採用</button>
+                            <button className="btn-ghost flex-1 h-9 rounded text-xs tracking-widest uppercase">略過</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* Placeholder cards before query */
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {DUMMY_CARDS.map((card) => (
+                    <div
+                      key={card.idx}
+                      className="rec-card rounded overflow-hidden opacity-40"
+                      style={{ background: "#1a1a17", border: "1px solid rgba(245,240,235,0.06)" }}
+                    >
+                      <div className="relative" style={{ height: "220px" }}>
+                        <div className="w-full h-full" style={{ background: "#1a1a17" }} />
+                        <div className="absolute top-3 left-3">
+                          <span className="font-display text-4xl font-light text-cream opacity-20" style={{ lineHeight: 1 }}>
+                            {card.idx}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <p className="font-display text-xl font-light text-cream" style={{ fontStyle: "italic" }}>{card.title}</p>
+                        <p className="text-xs text-cream opacity-40 mt-1 leading-relaxed">{card.desc}</p>
+                        <div className="flex gap-1.5 mt-3">
+                          {card.tags.map((tag) => (
+                            <span key={tag} className="tag-pill px-2 py-0.5 rounded-full">{tag}</span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 mt-4 pt-4 border-t hairline">
+                          <button disabled className="btn-primary flex-1 h-9 rounded text-xs tracking-widest uppercase opacity-50">採用</button>
+                          <button disabled className="btn-ghost flex-1 h-9 rounded text-xs tracking-widest uppercase">略過</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using OotdPlatform.Api.Contracts;
 using OotdPlatform.Api.Data;
 using OotdPlatform.Api.Services;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -80,6 +82,23 @@ builder.Services.AddScoped<CloudinaryService>();
 builder.Services.AddScoped<InMemoryPlatformStore>();
 builder.Services.AddScoped<JwtTokenService>();
 
+// Rate limiting — protects Gemini API from abuse on public endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Visual recommendation endpoint: 20 requests per IP per hour
+    options.AddPolicy("VisualRecommendation", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -101,6 +120,7 @@ app.UseExceptionHandler(exceptionApp =>
 });
 
 app.UseCors(CorsPolicyName);
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

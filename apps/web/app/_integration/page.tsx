@@ -71,20 +71,7 @@ export default function IntegrationPage() {
   async function handleCreateItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token) return;
-    setErrorMessage("");
-
-    try {
-      await api.createItem(token, {
-        name: itemName,
-        category: itemCategory,
-        color: itemColor,
-        styleTags: itemPayloadStyleTags,
-        imageUrl: itemImageUrl
-      });
-      await loadItems();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "新增單品失敗");
-    }
+    setErrorMessage("手動新增單品已移除，請改用上傳穿搭照流程。");
   }
 
   async function handleRecommendation(event: FormEvent<HTMLFormElement>) {

@@ -12,10 +12,14 @@ namespace OotdPlatform.Api.Controllers;
 public sealed class OutfitsController : ControllerBase
 {
     private readonly InMemoryPlatformStore _store;
+    private readonly CloudinaryService _cloudinary;
+    private readonly GeminiService _gemini;
 
-    public OutfitsController(InMemoryPlatformStore store)
+    public OutfitsController(InMemoryPlatformStore store, CloudinaryService cloudinary, GeminiService gemini)
     {
         _store = store;
+        _cloudinary = cloudinary;
+        _gemini = gemini;
     }
 
     [HttpGet("mine")]
@@ -27,12 +31,80 @@ public sealed class OutfitsController : ControllerBase
         return Ok(new PagedResponse<OutfitResponse>(paged, page, pageSize, all.Count));
     }
 
-    [HttpPost]
-    public ActionResult<CreateOutfitResponse> Create([FromBody] CreateOutfitRequest request)
+    /// <summary>
+    /// Step 1：上傳穿搭圖片 → Cloudinary → Gemini 識別單品 → 儲存草稿 → 回傳草稿供前端確認
+    /// </summary>
+    [HttpPost("upload")]
+    public async Task<ActionResult<OutfitUploadResponse>> Upload([FromForm] IFormFile file)
     {
         var userId = User.GetRequiredUserId();
-        var outfit = _store.CreateOutfit(userId, request.Title, request.Description, request.Occasion, request.Season, request.WeatherRange, request.ImageUrls, request.ItemIds);
-        return CreatedAtAction(nameof(GetById), new { id = outfit.Id }, new CreateOutfitResponse(outfit.Id, outfit.ModerationStatus));
+
+        CloudinaryUploadResult uploaded;
+        try
+        {
+            uploaded = await _cloudinary.UploadImageAsync(file, "ootd/outfits");
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiErrorResponse("UPLOAD_INVALID", ex.Message, null, HttpContext.TraceIdentifier));
+        }
+
+        DetectedOutfit detected;
+        try
+        {
+            detected = await _gemini.DetectOutfitItemsAsync(uploaded.Url);
+        }
+        catch (Exception)
+        {
+            detected = new DetectedOutfit("我的穿搭", "", "casual", "all-season", []);
+        }
+
+        var (outfit, draftItems) = _store.CreateDraftOutfit(userId, uploaded.Url, detected);
+
+        var draftItemResponses = draftItems.Select(i => new DraftItemResponse(
+            i.Id, i.Name, i.Category, i.Color,
+            i.StyleTags.ToArray(),
+            i.ImageUrl)).ToArray();
+
+        return Ok(new OutfitUploadResponse(
+            outfit.Id,
+            uploaded.Url,
+            outfit.Title,
+            outfit.Description ?? "",
+            outfit.Occasion,
+            outfit.Season,
+            draftItemResponses));
+    }
+
+    /// <summary>
+    /// Step 2：使用者確認（或編輯）草稿 → 建立正式 Outfit + WardrobeItems
+    /// </summary>
+    [HttpPost("{id:guid}/confirm")]
+    public ActionResult<OutfitResponse> Confirm([FromRoute] Guid id, [FromBody] ConfirmOutfitRequest request)
+    {
+        var userId = User.GetRequiredUserId();
+
+        var items = request.Items.Select(i =>
+            (i.Id, i.Name, i.Category, i.Color, (IReadOnlyCollection<string>?)i.StyleHints)
+        ).ToArray();
+
+        try
+        {
+            var confirmed = _store.ConfirmDraftOutfit(id, userId, request.Title, request.Description, request.Occasion, request.Season, request.WeatherRange, items);
+            return Ok(ToResponse(confirmed));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ApiErrorResponse("OUTFIT_NOT_FOUND", "草稿穿搭不存在", null, HttpContext.TraceIdentifier));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "OUTFIT_NOT_DRAFT")
+        {
+            return Conflict(new ApiErrorResponse("OUTFIT_NOT_DRAFT", "此穿搭已非草稿狀態", null, HttpContext.TraceIdentifier));
+        }
     }
 
     [AllowAnonymous]

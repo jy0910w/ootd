@@ -249,6 +249,165 @@ public sealed class InMemoryPlatformStore
         return outfit is null ? null : ToPlatformOutfit(outfit);
     }
 
+    /// <summary>
+    /// 上傳穿搭後由 AI 分析結果建立草稿 Outfit + 草稿 WardrobeItems。
+    /// </summary>
+    public (PlatformOutfit Outfit, IReadOnlyCollection<PlatformItem> DraftItems) CreateDraftOutfit(
+        Guid userId,
+        string imageUrl,
+        DetectedOutfit detected)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var outfit = new Outfit
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Title = detected.Title.Trim(),
+            Description = detected.Description?.Trim(),
+            Occasion = detected.Occasion.Trim().ToLowerInvariant(),
+            Season = detected.Season.Trim().ToLowerInvariant(),
+            WeatherRange = null,
+            ImageUrls = [imageUrl],
+            ModerationStatus = "draft",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        _dbContext.Outfits.Add(outfit);
+
+        var draftItems = new List<WardrobeItem>();
+        foreach (var di in detected.Items)
+        {
+            var item = new WardrobeItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Name = di.Name.Trim(),
+                Category = di.Category.Trim().ToLowerInvariant(),
+                Color = di.Color.Trim().ToLowerInvariant(),
+                StyleTags = di.StyleHints ?? [],
+                ImageUrl = string.Empty,
+                Status = "draft",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _dbContext.Items.Add(item);
+            draftItems.Add(item);
+
+            _dbContext.OutfitItems.Add(new OutfitItem
+            {
+                Id = Guid.NewGuid(),
+                OutfitId = outfit.Id,
+                ItemId = item.Id,
+                CreatedAt = now
+            });
+        }
+
+        _dbContext.SaveChanges();
+
+        var platformOutfit = GetOutfit(outfit.Id)!;
+        var platformItems = draftItems.Select(ToPlatformItem).ToArray();
+        return (platformOutfit, platformItems);
+    }
+
+    /// <summary>
+    /// 使用者確認草稿穿搭：更新 Outfit 欄位、整合單品（更新/新增/刪除），轉為 pending 狀態。
+    /// </summary>
+    public PlatformOutfit ConfirmDraftOutfit(
+        Guid outfitId,
+        Guid userId,
+        string title,
+        string? description,
+        string occasion,
+        string season,
+        string? weatherRange,
+        IReadOnlyCollection<(Guid? Id, string Name, string Category, string Color, IReadOnlyCollection<string>? StyleHints)> items)
+    {
+        var outfit = _dbContext.Outfits
+            .Include(x => x.OutfitItems)
+            .FirstOrDefault(x => x.Id == outfitId)
+            ?? throw new KeyNotFoundException("OUTFIT_NOT_FOUND");
+
+        if (outfit.UserId != userId)
+            throw new UnauthorizedAccessException("FORBIDDEN");
+
+        if (outfit.ModerationStatus != "draft")
+            throw new InvalidOperationException("OUTFIT_NOT_DRAFT");
+
+        outfit.Title = title.Trim();
+        outfit.Description = description?.Trim();
+        outfit.Occasion = occasion.Trim().ToLowerInvariant();
+        outfit.Season = season.Trim().ToLowerInvariant();
+        outfit.WeatherRange = weatherRange?.Trim();
+        outfit.ModerationStatus = "pending";
+        outfit.UpdatedAt = DateTimeOffset.UtcNow;
+
+        // Collect existing draft item IDs linked to this outfit
+        var existingItemIds = outfit.OutfitItems.Select(x => x.ItemId).ToHashSet();
+        var confirmedItemIds = items.Where(x => x.Id.HasValue).Select(x => x.Id!.Value).ToHashSet();
+
+        // Remove draft items that user deleted
+        var toRemoveItemIds = existingItemIds.Except(confirmedItemIds).ToArray();
+        foreach (var rid in toRemoveItemIds)
+        {
+            var item = _dbContext.Items.FirstOrDefault(x => x.Id == rid && x.UserId == userId);
+            if (item is not null && item.Status == "draft")
+                _dbContext.Items.Remove(item);
+        }
+
+        // Remove OutfitItems for deleted items
+        var toRemoveLinks = outfit.OutfitItems.Where(x => toRemoveItemIds.Contains(x.ItemId)).ToArray();
+        _dbContext.OutfitItems.RemoveRange(toRemoveLinks);
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var ci in items)
+        {
+            if (ci.Id.HasValue)
+            {
+                // Update existing draft item
+                var existing = _dbContext.Items.FirstOrDefault(x => x.Id == ci.Id.Value && x.UserId == userId);
+                if (existing is not null)
+                {
+                    existing.Name = ci.Name.Trim();
+                    existing.Category = ci.Category.Trim().ToLowerInvariant();
+                    existing.Color = ci.Color.Trim().ToLowerInvariant();
+                    existing.StyleTags = ci.StyleHints?.ToArray() ?? [];
+                    existing.Status = "active";
+                    existing.UpdatedAt = now;
+                }
+            }
+            else
+            {
+                // Create new item
+                var newItem = new WardrobeItem
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Name = ci.Name.Trim(),
+                    Category = ci.Category.Trim().ToLowerInvariant(),
+                    Color = ci.Color.Trim().ToLowerInvariant(),
+                    StyleTags = ci.StyleHints?.ToArray() ?? [],
+                    ImageUrl = string.Empty,
+                    Status = "active",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                _dbContext.Items.Add(newItem);
+                _dbContext.OutfitItems.Add(new OutfitItem
+                {
+                    Id = Guid.NewGuid(),
+                    OutfitId = outfitId,
+                    ItemId = newItem.Id,
+                    CreatedAt = now
+                });
+            }
+        }
+
+        _dbContext.SaveChanges();
+        return GetOutfit(outfitId)!;
+    }
+
     public PlatformOutfit CreateOutfit(Guid userId, string title, string? description, string occasion, string season, string? weatherRange, IReadOnlyCollection<string>? imageUrls, IReadOnlyCollection<Guid>? itemIds)
     {
         var now = DateTimeOffset.UtcNow;
