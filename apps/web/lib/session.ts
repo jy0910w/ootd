@@ -50,3 +50,16 @@ export function clearSession(): void {
 
   window.localStorage.removeItem(SESSION_KEY);
 }
+
+export function updateTokens(accessToken: string, refreshToken: string): void {
+  const session = getSession();
+  if (!session) {
+    return;
+  }
+
+  saveSession({
+    ...session,
+    accessToken,
+    refreshToken
+  });
+}

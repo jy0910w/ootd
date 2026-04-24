@@ -14,20 +14,91 @@ import type {
   UpdateOutfitPayload,
   VisualRecommendationResponse
 } from "@ootd/types";
+import { getSession, updateTokens, clearSession } from "./session";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5050/api/v1";
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const isFormData = options.body instanceof FormData;
+// Custom error for refresh failures
+export class RefreshFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RefreshFailedError";
+  }
+}
+
+// Promise cache to prevent duplicate refresh calls
+let refreshPromise: Promise<AuthResult> | null = null;
+
+async function refreshTokens(): Promise<AuthResult> {
+  // Return existing refresh promise if one is in flight
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  const session = getSession();
+  if (!session?.refreshToken) {
+    throw new RefreshFailedError("No refresh token available");
+  }
+
+  refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken: session.refreshToken })
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as ApiError | null;
+        const message = payload?.message ?? "Token refresh failed";
+        throw new RefreshFailedError(message);
+      }
+      return response.json() as Promise<AuthResult>;
+    })
+    .then((result) => {
+      // Update tokens in session
+      updateTokens(result.accessToken, result.refreshToken);
+      return result;
+    })
+    .finally(() => {
+      // Clear the promise cache
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
+type RequestOptions = RequestInit & {
+  skipRefresh?: boolean;
+};
+
+async function request<T>(path: string, options: RequestOptions = {}, token?: string): Promise<T> {
+  const { skipRefresh, ...fetchOptions } = options;
+  const isFormData = fetchOptions.body instanceof FormData;
+  
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {})
+      ...(fetchOptions.headers ?? {})
     },
     cache: "no-store"
   });
+
+  // Handle 401 with automatic token refresh
+  if (response.status === 401 && !skipRefresh && token) {
+    try {
+      const { accessToken } = await refreshTokens();
+      // Retry the original request with the new token
+      return request<T>(path, { ...options, skipRefresh: true }, accessToken);
+    } catch (error) {
+      if (error instanceof RefreshFailedError) {
+        // Clear session and re-throw to be handled by AuthGuard
+        clearSession();
+        throw error;
+      }
+      throw error;
+    }
+  }
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as ApiError | null;
@@ -98,6 +169,17 @@ export const api = {
   },
   getMyOutfits(token: string) {
     return request<PagedResponse<Outfit>>("/outfits/mine", {}, token);
+  },
+  getOutfitById(token: string, outfitId: string) {
+    return request<Outfit>(`/outfits/${outfitId}`, {}, token);
+  },
+  uploadOutfitImage(token: string, outfitId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    return request<string>(`/outfits/${outfitId}/upload-image`, {
+      method: "POST",
+      body: form
+    }, token);
   },
   updateOutfit(token: string, outfitId: string, payload: UpdateOutfitPayload) {
     return request<Outfit>(`/outfits/${outfitId}`, {

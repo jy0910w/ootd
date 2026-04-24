@@ -1,12 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getSession, saveSession } from "@/lib/session";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("jyunyu@example.com");
   const [password, setPassword] = useState("ghjk1591");
@@ -14,12 +15,18 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Get returnUrl and reason from query params
+  const returnUrl = searchParams.get("returnUrl");
+  const reason = searchParams.get("reason");
+
   useEffect(() => {
     const session = getSession();
     if (session?.accessToken) {
-      router.replace("/wardrobe");
+      // If already logged in, redirect to returnUrl or default to wardrobe
+      const destination = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/wardrobe";
+      router.replace(destination);
     }
-  }, [router]);
+  }, [router, returnUrl]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,7 +50,9 @@ export default function LoginPage() {
         }
       });
 
-      router.push("/wardrobe");
+      // Redirect to returnUrl (with XSS protection) or default to wardrobe
+      const destination = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/wardrobe";
+      router.push(destination);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "登入失敗");
     } finally {
@@ -90,6 +99,16 @@ export default function LoginPage() {
           <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-12 lg:hidden">
             Outfit of the Day
           </p>
+
+          {/* Session expired notice */}
+          {reason === "session_expired" && (
+            <div
+              className="mb-6 p-3 rounded text-xs"
+              style={{ background: "rgba(255,184,0,0.1)", border: "1px solid rgba(255,184,0,0.25)", color: "#ffb800" }}
+            >
+              登入已過期,請重新登入
+            </div>
+          )}
 
           <h1
             className="font-display text-4xl font-light text-cream mb-1"

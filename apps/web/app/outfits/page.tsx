@@ -153,7 +153,7 @@ function OutfitsContent({ session }: { session: SessionState }) {
                     >
                       <button
                         type="button"
-                        onClick={() => router.push(`/outfits?edit=${outfit.id}`)}
+                        onClick={() => router.push(`/outfits/${outfit.id}/edit`)}
                         className="btn-ghost w-8 h-8 rounded flex items-center justify-center"
                         title="編輯"
                       >

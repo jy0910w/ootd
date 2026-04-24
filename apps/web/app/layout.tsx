@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/lib/toast-context";
+import { AuthGuard } from "@/components/auth-guard";
 
 export const metadata: Metadata = {
   title: "OOTD — Outfit of the Day",
@@ -17,7 +19,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <ToastProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+        </ToastProvider>
+      </body>
     </html>
   );
 }

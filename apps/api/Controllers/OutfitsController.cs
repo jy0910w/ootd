@@ -144,6 +144,33 @@ public sealed class OutfitsController : ControllerBase
         }
     }
 
+    [HttpPost("{id:guid}/upload-image")]
+    public async Task<ActionResult<string>> UploadImage([FromRoute] Guid id, [FromForm] IFormFile file)
+    {
+        var userId = User.GetRequiredUserId();
+        
+        var outfit = _store.GetOutfit(id);
+        if (outfit is null)
+        {
+            return NotFound(new ApiErrorResponse("OUTFIT_NOT_FOUND", "穿搭不存在", null, HttpContext.TraceIdentifier));
+        }
+
+        if (outfit.UserId != userId)
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var uploaded = await _cloudinary.UploadImageAsync(file, "ootd/outfits");
+            return Ok(uploaded.Url);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiErrorResponse("UPLOAD_INVALID", ex.Message, null, HttpContext.TraceIdentifier));
+        }
+    }
+
     [HttpDelete("{id:guid}")]
     public ActionResult Delete([FromRoute] Guid id)
     {

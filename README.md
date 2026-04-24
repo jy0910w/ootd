@@ -24,6 +24,23 @@ ootd-backend/
 | PostgreSQL | 15+ |
 | npm | 10+ |
 
+## 環境變數設定
+
+**重要：在啟動前必須先設定環境變數**
+
+```bash
+# 1. 複製環境變數範本
+cp .env.example .env
+
+# 2. 編輯 .env 並填入真實值
+# Gemini__ApiKey=你的_gemini_api_key
+# Cloudinary__CloudName=你的_cloud_name
+# Cloudinary__ApiKey=你的_api_key
+# Cloudinary__ApiSecret=你的_api_secret
+```
+
+> **注意**：`.env` 已加入 `.gitignore`，不會被 commit。請勿將 secret 寫進 `appsettings.Development.json`。
+
 ## 啟動步驟
 
 ### 1. 啟動 PostgreSQL
@@ -45,15 +62,23 @@ docker compose up -d postgres
 
 ### 2. 啟動後端 API
 
+**方法 A：使用啟動腳本（推薦）**
 ```bash
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project apps/api --no-launch-profile -- --urls "http://localhost:5282"
+./scripts/run-api.sh
+```
+
+**方法 B：手動載入環境變數**
+```bash
+# macOS/Linux
+export $(cat .env | xargs)
+dotnet run --project apps/api/OotdPlatform.Api.csproj --no-launch-profile -- --urls "http://localhost:5050"
 ```
 
 首次啟動時會自動執行 EF Core migration 並建立 schema。
 
 **驗證：**
 ```bash
-curl http://localhost:5282/api/v1/health/ready
+curl http://localhost:5050/api/v1/health/ready
 # 預期：{"status":"ok","db":"ready"}
 ```
 
@@ -82,13 +107,17 @@ cp apps/admin/.env.local.example apps/admin/.env.local
 預設值（`.env.local`）：
 
 ```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:5282/api/v1
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5050/api/v1
 ```
 
 ### 5. 啟動前端
 
 **使用者端（port 3000）：**
 ```bash
+# 方法 A：使用啟動腳本
+./scripts/run-web.sh
+
+# 方法 B：直接啟動
 npm run dev --prefix apps/web
 ```
 
