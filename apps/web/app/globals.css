@@ -2,17 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════
+   DESIGN TOKENS — Light & Dark Mode Support
+   ═══════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    /* Brand Colors - Teal */
+    --brand-50:  #ECFDF7;
+    --brand-100: #D1FAE5;
+    --brand-400: #34D399;
+    --brand-500: #00D4AA;
+    --brand-600: #00B894;
+    --brand-700: #0D9B7E;
+
+    /* Accent Colors - Orange */
+    --accent-400: #FFB347;
+    --accent-500: #FF9E1F;
+    --accent-600: #F97316;
+
+    /* Light Mode (Default) */
+    --bg-base: #FFFFFF;
+    --bg-elevated: #F9FAFB;
+    --bg-subtle: #F3F4F6;
+    --bg-overlay: rgba(0, 0, 0, 0.6);
+    
+    --text-primary: #111827;
+    --text-secondary: #6B7280;
+    --text-tertiary: #9CA3AF;
+    --text-disabled: #D1D5DB;
+    
+    --border: #E5E7EB;
+    --border-subtle: #F3F4F6;
+    --border-focus: #00D4AA;
+  }
+
+  .dark {
+    /* Dark Mode */
+    --bg-base: #0F1419;
+    --bg-elevated: #1A1F28;
+    --bg-subtle: #232933;
+    --bg-overlay: rgba(0, 0, 0, 0.85);
+    
+    --text-primary: #F9FAFB;
+    --text-secondary: #D1D5DB;
+    --text-tertiary: #9CA3AF;
+    --text-disabled: #4B5563;
+    
+    --border: #2D3748;
+    --border-subtle: #1F2937;
+    --border-focus: #00D4AA;
+  }
+}
+
 /* ── Base reset ── */
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   padding: 0;
-  font-family: "Noto Sans TC", system-ui, sans-serif;
-  background: #0d0d0b;
-  color: #f5f0eb;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
-  font-weight: 300;
+  font-weight: 400;
 }
 
 /* ── Grain overlay ── */
@@ -28,8 +81,8 @@ body::before {
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #0d0d0b; }
-::-webkit-scrollbar-thumb { background: #2f7a56; border-radius: 2px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--brand-500); border-radius: 2px; }
 
 /* ── Masonry grid ── */
 .masonry {
@@ -59,101 +112,107 @@ body::before {
 
 /* ── Composer panel item ── */
 .composer-item { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
-.composer-item:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-.composer-item.selected { border-color: #2f7a56 !important; box-shadow: 0 0 0 1px #2f7a56; }
+.composer-item:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,212,170,0.2); }
+.composer-item.selected { border-color: var(--brand-500) !important; box-shadow: 0 0 0 1px var(--brand-500); }
 
 /* ── Nav link ── */
 .nav-link {
   position: relative;
-  color: rgba(245,240,235,0.65);
+  color: var(--text-secondary);
   transition: color 0.2s ease;
   font-size: 11px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  font-family: "Noto Sans TC", system-ui, sans-serif;
-  font-weight: 400;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 500;
 }
 .nav-link::after {
   content: '';
   position: absolute;
   bottom: -2px; left: 0; right: 0;
   height: 1px;
-  background: #2f7a56;
+  background: var(--brand-500);
   transform: scaleX(0);
   transition: transform 0.25s ease;
 }
-.nav-link:hover { color: #f5f0eb; }
+.nav-link:hover { color: var(--text-primary); }
 .nav-link:hover::after { transform: scaleX(1); }
-.nav-link.active { color: #f5f0eb; }
+.nav-link.active { color: var(--text-primary); }
 .nav-link.active::after { transform: scaleX(1); }
 
 /* ── Button variants ── */
 .btn-primary {
-  background: #2f7a56;
-  color: #f5f0eb;
+  background: var(--brand-500);
+  color: white;
   transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
   cursor: pointer;
   border: none;
-  font-family: "Noto Sans TC", system-ui, sans-serif;
+  font-family: Inter, system-ui, sans-serif;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
-.btn-primary:hover { background: #256244; box-shadow: 0 8px 24px rgba(47,122,86,0.35); }
+.btn-primary:hover { background: var(--brand-600); box-shadow: 0 8px 24px rgba(0,212,170,0.25); }
 .btn-primary:active { transform: scale(0.97); }
-.btn-primary:focus-visible { outline: 2px solid #2f7a56; outline-offset: 3px; }
+.btn-primary:focus-visible { outline: 2px solid var(--brand-500); outline-offset: 3px; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-ghost {
-  border: 1px solid rgba(245,240,235,0.28);
+  border: 1px solid var(--border);
   background: transparent;
-  color: #f5f0eb;
+  color: var(--text-primary);
   transition: border-color 0.2s ease, background 0.2s ease;
   cursor: pointer;
-  font-family: "Noto Sans TC", system-ui, sans-serif;
-  font-weight: 400;
-  letter-spacing: 0.06em;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
-.btn-ghost:hover { border-color: rgba(245,240,235,0.55); background: rgba(245,240,235,0.07); }
-.btn-ghost:active { background: rgba(245,240,235,0.1); }
-.btn-ghost:focus-visible { outline: 2px solid #f5f0eb; outline-offset: 3px; }
+.btn-ghost:hover { border-color: var(--text-secondary); background: var(--bg-subtle); }
+.btn-ghost:active { background: var(--bg-elevated); }
+.btn-ghost:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 3px; }
 
 /* ── Form fields ── */
 .field {
-  background: rgba(245,240,235,0.05);
-  border: 1px solid rgba(245,240,235,0.12);
-  color: #f5f0eb;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   transition: border-color 0.2s ease, background 0.2s ease;
   width: 100%;
 }
-.field::placeholder { color: rgba(245,240,235,0.4); }
-.field:focus { outline: none; border-color: #2f7a56; background: rgba(245,240,235,0.08); }
+.field::placeholder { color: var(--text-tertiary); }
+.field:focus { outline: none; border-color: var(--border-focus); background: var(--bg-base); }
 
 /* ── Dropzone ── */
 .dropzone {
-  border: 1px dashed rgba(245,240,235,0.2);
+  border: 1px dashed var(--border);
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 .dropzone:hover, .dropzone.drag-over {
-  border-color: #2f7a56;
-  background: rgba(47,122,86,0.06);
+  border-color: var(--brand-500);
+  background: rgba(0,212,170,0.05);
 }
 
 /* ── Tag pill ── */
 .tag-pill {
-  background: rgba(47,122,86,0.15);
-  border: 1px solid rgba(47,122,86,0.3);
-  color: #7bbfa0;
+  background: var(--brand-50);
+  border: 1px solid var(--brand-400);
+  color: var(--brand-700);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
+.dark .tag-pill {
+  background: rgba(0,212,170,0.1);
+  border: 1px solid rgba(0,212,170,0.3);
+  color: var(--brand-400);
+}
+
 /* ── Hairline divider ── */
-.hairline { border-color: rgba(245,240,235,0.08); }
+.hairline { border-color: var(--border-subtle); }
 
 /* ── Modal backdrop ── */
 .modal-backdrop {
-  background: rgba(13,13,11,0.85);
+  background: var(--bg-overlay);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -161,12 +220,12 @@ body::before {
 /* ── Step dot ── */
 .step-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: rgba(245,240,235,0.2);
+  background: var(--border);
   transition: background 0.2s ease, transform 0.2s ease;
   display: inline-block;
 }
-.step-dot.active { background: #2f7a56; transform: scale(1.4); }
-.step-dot.done { background: rgba(47,122,86,0.5); }
+.step-dot.active { background: var(--brand-500); transform: scale(1.4); }
+.step-dot.done { background: var(--brand-400); }
 
 /* ── Toast animations ── */
 @keyframes toast-slide-in {
@@ -197,4 +256,21 @@ body::before {
 
 .toast-slide-out {
   animation: toast-slide-out 0.25s ease forwards;
+}
+
+/* ═══════════════════════════════════════════════════
+   BACKWARD COMPATIBILITY UTILITIES
+   Maps old color names to new design tokens
+   ═══════════════════════════════════════════════════ */
+
+@layer utilities {
+  /* Legacy "cream" = primary text color */
+  .text-cream { color: var(--text-primary) !important; }
+  .bg-cream { background-color: var(--bg-base) !important; }
+  .border-cream { border-color: var(--border) !important; }
+  
+  /* Legacy "ink" = base background / dark surface */
+  .text-ink { color: var(--text-primary) !important; }
+  .bg-ink { background-color: var(--bg-base) !important; }
+  .bg-ink-soft { background-color: var(--bg-elevated) !important; }
 }

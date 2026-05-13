@@ -73,6 +73,110 @@ public sealed class RecommendationsController : ControllerBase
         return Ok(new VisualRecommendationResponse(analysis, results));
     }
 
+    /// <summary>
+    /// 上傳單品照片 → AI 識別 → 自動加入衣櫃 → 推薦包含該單品的穿搭
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("VisualRecommendation")]
+    [HttpPost("from-item")]
+    public async Task<ActionResult<ItemRecommendationResponse>> FromItem(
+        [FromForm] IFormFile file,
+        [FromForm] string? occasion,
+        [FromForm] string? season,
+        [FromForm] string? weather)
+    {
+        // 1. Upload image to Cloudinary
+        CloudinaryUploadResult uploaded;
+        try
+        {
+            uploaded = await _cloudinary.UploadImageAsync(file, "ootd/items");
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new ApiErrorResponse("UPLOAD_INVALID", ex.Message, null, HttpContext.TraceIdentifier));
+        }
+
+        // 2. AI detect single item
+        DetectedItem detected;
+        try
+        {
+            detected = await _gemini.DetectSingleItemAsync(uploaded.Url);
+        }
+        catch (Exception)
+        {
+            detected = new DetectedItem("未知單品", "top", "unknown", []);
+        }
+
+        // 3. Create wardrobe item (if user is logged in)
+        Guid itemId;
+        Guid? userId = User.GetUserId();
+
+        if (userId.HasValue)
+        {
+            var item = _store.CreateItem(
+                userId.Value,
+                detected.Name,
+                detected.Category,
+                detected.Color,
+                detected.StyleHints,
+                uploaded.Url);
+            itemId = item.Id;
+        }
+        else
+        {
+            // For anonymous users, generate a temporary ID
+            itemId = Guid.NewGuid();
+        }
+
+        // 4. Find outfits matching the detected item
+        var requestOccasion = (occasion ?? "casual").Trim().ToLowerInvariant();
+        var requestSeason = (season ?? "all-season").Trim().ToLowerInvariant();
+        var requestWeather = (weather ?? "any").Trim().ToLowerInvariant();
+
+        var inputCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { detected.Category };
+        var inputColors = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { detected.Color };
+        var inputStyleTags = detected.StyleHints.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidates = _store.GetOutfitsByStatus("approved").ToArray();
+        var scored = candidates
+            .Select(outfit => (outfit, score: ScoreOutfit(
+                outfit,
+                requestOccasion,
+                requestSeason,
+                requestWeather,
+                inputStyleTags,
+                inputCategories,
+                inputColors,
+                inputStyleTags)))
+            .Where(x => x.score.Total > 0)
+            .OrderByDescending(x => x.score.Total)
+            .Take(20)
+            .ToArray();
+
+        var recommendedOutfits = scored
+            .Select(x => new OutfitBriefResponse(
+                x.outfit.Id,
+                x.outfit.UserId,
+                x.outfit.Title,
+                x.outfit.Description,
+                x.outfit.Occasion,
+                x.outfit.Season,
+                x.outfit.WeatherRange,
+                x.outfit.ImageUrls.FirstOrDefault() ?? "",
+                Math.Round(x.score.Total, 2),
+                x.score.Reasons))
+            .ToArray();
+
+        var detectedItemInfo = new DetectedItemInfo(
+            itemId,
+            detected.Name,
+            detected.Category,
+            detected.Color,
+            detected.StyleHints);
+
+        return Ok(new ItemRecommendationResponse(detectedItemInfo, recommendedOutfits));
+    }
+
     [HttpPost("query")]
     public ActionResult<RecommendationQueryResponse> Query([FromBody] RecommendationQueryRequest request)
     {

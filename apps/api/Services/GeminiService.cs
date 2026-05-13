@@ -155,6 +155,46 @@ public class GeminiService
         }
     }
 
+    /// <summary>
+    /// 從單品圖片識別單一單品的屬性，用於單品推薦功能。
+    /// </summary>
+    public async Task<DetectedItem> DetectSingleItemAsync(string imageUrl)
+    {
+        var mimeType = await ResolveMimeTypeAsync(imageUrl);
+        var googleAi = new GoogleAI(_apiKey);
+        var model = googleAi.GenerativeModel(_modelName);
+
+        const string prompt = """
+            請仔細分析這張圖片中的服飾單品，以 JSON 格式回傳識別結果：
+            {
+              "name": "繁體中文單品名稱，如「白色棉質T恤」、「深藍色牛仔褲」",
+              "category": "top | bottom | outer | shoes | bag | accessory",
+              "color": "英文顏色名稱，如 white | black | navy | beige | gray",
+              "styleHints": ["最多 3 個英文風格關鍵字，例如 casual, minimal, vintage"]
+            }
+            只回傳 JSON，不要其他文字。如果圖片中有多個單品，只識別最主要的那一個。
+            """;
+
+        var request = new GenerateContentRequest(prompt);
+        await request.AddMedia(imageUrl, mimeType, useOnline: false);
+        var response = await model.GenerateContent(request);
+        var json = CleanJson(response.Text ?? "{}");
+
+        try
+        {
+            var raw = JsonSerializer.Deserialize<JsonElement>(json);
+            return new DetectedItem(
+                raw.GetStringOrDefault("name", "未知單品"),
+                raw.GetStringOrDefault("category", "top"),
+                raw.GetStringOrDefault("color", "unknown"),
+                raw.GetStringArrayOrDefault("styleHints"));
+        }
+        catch
+        {
+            return new DetectedItem("未知單品", "top", "unknown", []);
+        }
+    }
+
     // ─── Private helpers ──────────────────────────────────────────────────────
 
     private async Task<string> ResolveMimeTypeAsync(string imageUrl)

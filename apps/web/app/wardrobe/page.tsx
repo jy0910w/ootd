@@ -58,28 +58,27 @@ function WardrobeContent({ session }: { session: SessionState }) {
       <MvpNav session={session} />
 
       {/* ── Page content ── */}
-      <div className="pt-14 min-h-screen">
+      <div className="pt-14 min-h-screen bg-white dark:bg-gray-950">
         <div className="max-w-screen-xl mx-auto px-4 md:px-8 lg:px-10">
 
           {/* Header */}
-          <div className="flex items-end justify-between py-8 border-b hairline mb-6">
+          <div className="flex items-end justify-between py-8 border-b border-gray-200 dark:border-gray-800 mb-6">
             <div>
-              <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-1">My Collection</p>
-              <h1 className="font-display text-5xl md:text-6xl font-light text-cream" style={{ lineHeight: 1, letterSpacing: "-0.04em" }}>
+              <p className="text-xs tracking-widest text-gray-400 dark:text-gray-500 uppercase mb-1">My Collection</p>
+              <h1 className="text-5xl md:text-6xl font-light text-gray-900 dark:text-white leading-none tracking-tight">
                 衣櫃
               </h1>
             </div>
           </div>
 
           {/* Filter bar */}
-          <div className="flex items-center gap-3 pb-6 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <div className="flex items-center gap-3 pb-6 overflow-x-auto scrollbar-hide">
             {CATEGORIES.map((cat) => (
               <button
                 key={cat.value}
                 type="button"
                 onClick={() => setFilterCategory(cat.value)}
-                className={`shrink-0 h-8 px-4 rounded-full text-xs tracking-wide uppercase ${filterCategory === cat.value ? "btn-primary" : "btn-ghost"}`}
-                style={{ fontSize: "10px" }}
+                className={`shrink-0 h-8 px-4 rounded-full text-[10px] tracking-wide uppercase ${filterCategory === cat.value ? "btn-primary" : "btn-ghost"}`}
               >
                 {cat.label}
               </button>
@@ -88,7 +87,7 @@ function WardrobeContent({ session }: { session: SessionState }) {
 
           {/* Error */}
           {errorMessage && (
-            <div className="mb-4 p-3 rounded text-xs" style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}>
+            <div className="mb-4 p-3 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400">
               {errorMessage}
             </div>
           )}
@@ -98,7 +97,7 @@ function WardrobeContent({ session }: { session: SessionState }) {
             <button
               type="button"
               onClick={() => void loadItems()}
-              className="btn-ghost h-8 px-4 rounded text-xs tracking-widest uppercase flex items-center gap-1.5"
+              className="btn-ghost h-8 px-4 rounded-lg text-xs tracking-widest uppercase flex items-center gap-1.5"
             >
               <RefreshCw size={12} />
               重新載入
@@ -111,40 +110,37 @@ function WardrobeContent({ session }: { session: SessionState }) {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="masonry-item">
                   <div
-                    className="rounded"
-                    style={{ height: HEIGHTS[i % HEIGHTS.length], background: "rgba(245,240,235,0.04)" }}
+                    className="rounded-lg bg-gray-100 dark:bg-gray-900"
+                    style={{ height: HEIGHTS[i % HEIGHTS.length] }}
                   />
                 </div>
               ))}
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-              <p className="font-display text-3xl font-light text-cream opacity-20 mb-3" style={{ fontStyle: "italic" }}>
+              <p className="text-3xl font-light text-gray-300 dark:text-gray-700 mb-3 italic">
                 衣櫃是空的
               </p>
-              <p className="text-xs text-cream opacity-20">上傳穿搭照後，AI 識別的單品將自動加入衣櫃</p>
+              <p className="text-xs text-gray-400 dark:text-gray-600">上傳穿搭照後，AI 識別的單品將自動加入衣櫃</p>
             </div>
           ) : (
             <div className="masonry pb-16">
               {filteredItems.map((item, i) => (
                 <div key={item.id} className="masonry-item">
-                  <div className="item-card relative rounded overflow-hidden cursor-pointer" style={{ background: "#1a1a17" }}>
+                  <div className="item-card relative rounded-lg overflow-hidden cursor-pointer bg-gray-100 dark:bg-gray-900">
                     {item.imageUrl ? (
                       <img
                         src={item.imageUrl}
                         alt={item.name}
-                        className="w-full block"
-                        style={{ height: HEIGHTS[i % HEIGHTS.length], objectFit: "cover" }}
+                        className="w-full block object-cover"
+                        style={{ height: HEIGHTS[i % HEIGHTS.length] }}
                       />
                     ) : (
-                      <div style={{ height: HEIGHTS[i % HEIGHTS.length], background: "#1a1a17" }} />
+                      <div style={{ height: HEIGHTS[i % HEIGHTS.length] }} className="bg-gray-100 dark:bg-gray-900" />
                     )}
-                    <div
-                      className="absolute inset-0"
-                      style={{ background: "linear-gradient(to top, rgba(13,13,11,0.8) 0%, transparent 50%)" }}
-                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-3 pointer-events-none">
-                      <p className="text-xs text-cream font-medium">{item.name}</p>
+                      <p className="text-xs text-white font-medium">{item.name}</p>
                       <div className="flex gap-1 mt-1 flex-wrap">
                         <span className="tag-pill px-2 py-0.5 rounded-full">{item.category}</span>
                         <span className="tag-pill px-2 py-0.5 rounded-full">{item.color}</span>

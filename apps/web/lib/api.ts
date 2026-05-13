@@ -5,6 +5,7 @@ import type {
   CreateFeedbackPayload,
   CreateFeedbackResult,
   Item,
+  ItemRecommendationResponse,
   Outfit,
   OutfitUploadResponse,
   PagedResponse,
@@ -200,12 +201,38 @@ export const api = {
   }
 };
 
+// ─── Item Recommendation (上傳單品照 → AI 推薦穿搭) ─────────────────────────
+
+export async function getItemRecommendations(
+  file: File,
+  options?: { occasion?: string; season?: string; weather?: string }
+): Promise<ItemRecommendationResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (options?.occasion) formData.append("occasion", options.occasion);
+  if (options?.season) formData.append("season", options.season);
+  if (options?.weather) formData.append("weather", options.weather);
+
+  const response = await fetch(`${API_BASE_URL}/recommendations/from-item`, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null;
+    throw new Error(payload?.message ?? `上傳失敗 (${response.status})`);
+  }
+
+  return response.json();
+}
+
 export type {
   AuthResult,
   ConfirmOutfitRequest,
   CreateFeedbackPayload,
   CreateFeedbackResult,
   Item,
+  ItemRecommendationResponse,
   Outfit,
   OutfitUploadResponse,
   RecommendationDetail,

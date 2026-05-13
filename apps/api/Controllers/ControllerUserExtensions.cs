@@ -14,4 +14,15 @@ internal static class ControllerUserExtensions
 
         throw new UnauthorizedAccessException("USER_ID_MISSING");
     }
+
+    public static Guid? GetUserId(this ClaimsPrincipal user)
+    {
+        var value = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
+        if (Guid.TryParse(value, out var userId))
+        {
+            return userId;
+        }
+
+        return null;
+    }
 }

@@ -81,10 +81,10 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   const borderColors = {
-    success: "#2f7a56",
-    error: "#e07b77",
-    warning: "#d4a574",
-    info: "#7bbfa0"
+    success: "#00D4AA",
+    error: "#ef4444",
+    warning: "#FFB347",
+    info: "#06b6d4"
   };
 
   const icons = {
@@ -96,15 +96,10 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
 
   return (
     <div
-      className="toast pointer-events-auto animate-slide-in-right"
+      className="toast pointer-events-auto animate-slide-in-right bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-xl"
       style={{
-        background: "rgba(22,22,19,0.95)",
         backdropFilter: "blur(16px)",
-        border: "1px solid rgba(245,240,235,0.12)",
         borderLeft: `3px solid ${borderColors[toast.type]}`,
-        borderRadius: "12px",
-        padding: "1rem 1.25rem",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
         display: "flex",
         alignItems: "center",
         gap: "0.75rem"
@@ -119,11 +114,11 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
       >
         {icons[toast.type]}
       </span>
-      <p className="flex-1 text-sm text-cream leading-relaxed">{toast.message}</p>
+      <p className="flex-1 text-sm text-gray-900 dark:text-white leading-relaxed">{toast.message}</p>
       <button
         type="button"
         onClick={() => onRemove(toast.id)}
-        className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-cream opacity-30 hover:opacity-60 transition-opacity"
+        className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
         aria-label="關閉"
       >
         ✕

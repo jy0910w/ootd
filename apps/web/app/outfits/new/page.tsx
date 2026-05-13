@@ -116,21 +116,21 @@ function OutfitUploader({ session }: { session: SessionState }) {
     <>
       <MvpNav session={session} />
 
-      <div className="pt-14 min-h-screen">
+      <div className="pt-14 min-h-screen bg-white dark:bg-gray-950">
         <div className="max-w-screen-lg mx-auto px-4 md:px-8 lg:px-10">
 
           {/* Header */}
-          <div className="flex items-center justify-between py-6 border-b hairline">
+          <div className="flex items-center justify-between py-6 border-b border-gray-200 dark:border-gray-800">
             <div>
               <button
                 type="button"
                 onClick={() => router.push("/outfits")}
-                className="flex items-center gap-1 text-xs tracking-widest text-cream opacity-30 uppercase mb-1 hover:opacity-60 transition-opacity"
+                className="flex items-center gap-1 text-xs tracking-widest text-gray-400 dark:text-gray-500 uppercase mb-1 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
               >
                 <ArrowLeft size={11} />
                 返回穿搭
               </button>
-              <h1 className="font-display text-3xl font-light text-cream mt-1" style={{ letterSpacing: "-0.03em" }}>
+              <h1 className="text-3xl font-light text-gray-900 dark:text-white mt-1 tracking-tight">
                 新增穿搭
               </h1>
             </div>
@@ -143,17 +143,17 @@ function OutfitUploader({ session }: { session: SessionState }) {
                     className={`step-dot ${step === s ? "active" : step > s ? "done" : ""}`}
                   />
                   {idx < 2 && (
-                    <span style={{ width: 24, height: 1, background: "rgba(245,240,235,0.15)", display: "inline-block" }} />
+                    <span className="w-6 h-px bg-gray-300 dark:bg-gray-700" />
                   )}
                 </div>
               ))}
-              <span className="text-xs text-cream opacity-30 ml-2">步驟 {step}/3</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">步驟 {step}/3</span>
             </div>
           </div>
 
           {/* Error */}
           {error && (
-            <div className="mt-4 p-3 rounded text-xs" style={{ background: "rgba(182,59,54,0.12)", border: "1px solid rgba(182,59,54,0.3)", color: "#e07b77" }}>
+            <div className="mt-4 p-3 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400">
               {error}
             </div>
           )}
@@ -161,11 +161,9 @@ function OutfitUploader({ session }: { session: SessionState }) {
           {/* ── Step 1: Upload ── */}
           {step === 1 && (
             <div className="py-10 max-w-lg mx-auto">
-              <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-6 text-center">步驟 1 · 上傳穿搭照</p>
+              <p className="text-xs tracking-widest text-gray-400 dark:text-gray-500 uppercase mb-6 text-center">步驟 1 · 上傳穿搭照</p>
 
-              <label className={`block rounded-xl cursor-pointer transition-all ${previewUrl ? "" : "dropzone p-16 text-center"}`}
-                style={previewUrl ? {} : { border: "1px dashed rgba(245,240,235,0.12)" }}
-              >
+              <label className={`block rounded-xl cursor-pointer transition-all ${previewUrl ? "" : "dropzone p-16 text-center border-2 border-dashed border-gray-200 dark:border-gray-800"}`}>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -176,7 +174,7 @@ function OutfitUploader({ session }: { session: SessionState }) {
                 {previewUrl ? (
                   <div className="relative rounded-xl overflow-hidden" style={{ aspectRatio: "4/5", maxHeight: 440 }}>
                     <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(13,13,11,0.4) 0%, transparent 60%)" }} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
                     <button
                       type="button"
                       className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center btn-ghost"
@@ -187,9 +185,9 @@ function OutfitUploader({ session }: { session: SessionState }) {
                   </div>
                 ) : (
                   <>
-                    <Upload size={36} className="mx-auto mb-4 text-cream opacity-20" />
-                    <p className="text-sm text-cream opacity-40 mb-1">拖曳圖片或點擊上傳</p>
-                    <p className="text-xs text-cream opacity-20">JPG、PNG、WEBP · 最大 10 MB</p>
+                    <Upload size={36} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">拖曳圖片或點擊上傳</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">JPG、PNG、WEBP · 最大 10 MB</p>
                   </>
                 )}
               </label>
@@ -210,7 +208,7 @@ function OutfitUploader({ session }: { session: SessionState }) {
           {/* ── Step 2: Review AI-detected items ── */}
           {step === 2 && draft && (
             <div className="py-8">
-              <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-6 text-center">步驟 2 · 確認 AI 識別結果</p>
+              <p className="text-xs tracking-widest text-gray-400 dark:text-gray-500 uppercase mb-6 text-center">步驟 2 · 確認 AI 識別結果</p>
 
               <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
                 {/* Photo preview */}
@@ -223,48 +221,47 @@ function OutfitUploader({ session }: { session: SessionState }) {
                   {/* Outfit meta */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-3">
-                      <label className="block text-xs tracking-widest text-cream opacity-30 uppercase mb-1">穿搭標題</label>
+                      <label className="block text-xs tracking-widest text-gray-500 dark:text-gray-400 uppercase mb-1">穿搭標題</label>
                       <input
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
-                        className="field h-10 px-3 rounded text-sm"
+                        className="field h-10 px-3 rounded-lg text-sm"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-xs tracking-widest text-cream opacity-30 uppercase mb-1">場合</label>
-                      <input value={editOccasion} onChange={(e) => setEditOccasion(e.target.value)} className="field h-9 px-3 rounded text-xs" />
+                      <label className="block text-xs tracking-widest text-gray-500 dark:text-gray-400 uppercase mb-1">場合</label>
+                      <input value={editOccasion} onChange={(e) => setEditOccasion(e.target.value)} className="field h-9 px-3 rounded-lg text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs tracking-widest text-cream opacity-30 uppercase mb-1">季節</label>
-                      <input value={editSeason} onChange={(e) => setEditSeason(e.target.value)} className="field h-9 px-3 rounded text-xs" />
+                      <label className="block text-xs tracking-widest text-gray-500 dark:text-gray-400 uppercase mb-1">季節</label>
+                      <input value={editSeason} onChange={(e) => setEditSeason(e.target.value)} className="field h-9 px-3 rounded-lg text-xs" />
                     </div>
                   </div>
 
                   {/* Items */}
                   <div>
-                    <p className="text-xs tracking-widest text-cream opacity-30 uppercase mb-3">
+                    <p className="text-xs tracking-widest text-gray-500 dark:text-gray-400 uppercase mb-3">
                       AI 識別到 {editItems.length} 件單品
                     </p>
                     <div className="space-y-2">
                       {editItems.map((item, i) => (
                         <div
                           key={item.id ?? i}
-                          className="rounded-lg p-3 flex gap-3 items-start"
-                          style={{ background: "rgba(245,240,235,0.03)", border: "1px solid rgba(245,240,235,0.06)" }}
+                          className="rounded-lg p-3 flex gap-3 items-start bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800"
                         >
-                          <span className="text-xs text-cream opacity-20 shrink-0 mt-2 w-4 text-right">{i + 1}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 mt-2 w-4 text-right">{i + 1}</span>
                           <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <input
                               value={item.name}
                               onChange={(e) => updateItem(i, "name", e.target.value)}
                               placeholder="名稱"
-                              className="field h-8 px-2 rounded text-xs sm:col-span-1 col-span-2"
+                              className="field h-8 px-2 rounded-lg text-xs sm:col-span-1 col-span-2"
                             />
                             <select
                               value={item.category}
                               onChange={(e) => updateItem(i, "category", e.target.value)}
-                              className="field h-8 px-2 rounded text-xs"
+                              className="field h-8 px-2 rounded-lg text-xs"
                             >
                               <option value="top">上衣</option>
                               <option value="bottom">下身</option>
@@ -277,13 +274,13 @@ function OutfitUploader({ session }: { session: SessionState }) {
                               value={item.color}
                               onChange={(e) => updateItem(i, "color", e.target.value)}
                               placeholder="顏色"
-                              className="field h-8 px-2 rounded text-xs"
+                              className="field h-8 px-2 rounded-lg text-xs"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={() => removeItem(i)}
-                            className="shrink-0 w-7 h-7 rounded flex items-center justify-center text-cream opacity-20 hover:opacity-50 transition-opacity mt-0.5"
+                            className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors mt-0.5"
                           >
                             <X size={12} />
                           </button>
@@ -294,14 +291,14 @@ function OutfitUploader({ session }: { session: SessionState }) {
 
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-2">
-                    <button type="button" onClick={() => setStep(1)} className="btn-ghost h-10 px-5 rounded text-xs tracking-widest uppercase">
+                    <button type="button" onClick={() => setStep(1)} className="btn-ghost h-10 px-5 rounded-lg text-xs tracking-widest uppercase">
                       上一步
                     </button>
                     <button
                       type="button"
                       disabled={confirming || !editTitle.trim()}
                       onClick={() => void handleConfirm()}
-                      className="btn-primary h-10 px-8 rounded text-xs tracking-widest uppercase flex items-center gap-2 disabled:opacity-30"
+                      className="btn-primary h-10 px-8 rounded-lg text-xs tracking-widest uppercase flex items-center gap-2 disabled:opacity-30"
                     >
                       {confirming ? "建立中..." : (
                         <>確認建立 <ChevronRight size={12} /></>
@@ -316,28 +313,28 @@ function OutfitUploader({ session }: { session: SessionState }) {
           {/* ── Step 3: Success ── */}
           {step === 3 && (
             <div className="py-20 text-center">
-              <CheckCircle size={48} className="mx-auto mb-6 text-brand-400 opacity-70" />
-              <h2 className="font-display text-4xl font-light text-cream mb-3" style={{ letterSpacing: "-0.03em" }}>
+              <CheckCircle size={48} className="mx-auto mb-6 text-brand-500 dark:text-brand-400" />
+              <h2 className="text-4xl font-light text-gray-900 dark:text-white mb-3 tracking-tight">
                 穿搭已建立
               </h2>
-              <p className="text-xs text-cream opacity-30 mb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                 穿搭已提交審核，審核通過後將公開顯示。
               </p>
               {confirmedId && (
-                <p className="text-xs text-cream opacity-20 font-mono mb-8">ID: {confirmedId}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mb-8">ID: {confirmedId}</p>
               )}
               <div className="flex items-center justify-center gap-4">
                 <button
                   type="button"
                   onClick={() => { setStep(1); setPreviewUrl(null); setSelectedFile(null); setDraft(null); setError(""); }}
-                  className="btn-ghost h-10 px-6 rounded text-xs tracking-widest uppercase"
+                  className="btn-ghost h-10 px-6 rounded-lg text-xs tracking-widest uppercase"
                 >
                   再新增一套
                 </button>
                 <button
                   type="button"
                   onClick={() => router.push("/outfits")}
-                  className="btn-primary h-10 px-6 rounded text-xs tracking-widest uppercase"
+                  className="btn-primary h-10 px-6 rounded-lg text-xs tracking-widest uppercase"
                 >
                   查看我的穿搭
                 </button>

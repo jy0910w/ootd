@@ -211,3 +211,31 @@ export type VisualRecommendationResponse = {
   analysis: VisualAnalysisSummary;
   results: RecommendationResult[];
 };
+
+// ─── Item-based Recommendation (上傳單品 → 推薦穿搭) ─────────────────────────
+
+export type DetectedItemInfo = {
+  itemId: string;
+  name: string;
+  category: string;
+  color: string;
+  styleHints: string[];
+};
+
+export type OutfitBrief = {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  occasion: string;
+  season: string;
+  weatherRange?: string;
+  imageUrl: string;
+  score: number;
+  reasons: string[];
+};
+
+export type ItemRecommendationResponse = {
+  detectedItem: DetectedItemInfo;
+  recommendedOutfits: OutfitBrief[];
+};

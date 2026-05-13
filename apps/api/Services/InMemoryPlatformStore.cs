@@ -620,26 +620,276 @@ public sealed class InMemoryPlatformStore
 
     private void EnsureSeedData()
     {
-        if (_dbContext.Users.Any())
+        var now = DateTimeOffset.UtcNow;
+        
+        // Seed Users if empty
+        if (!_dbContext.Users.Any())
         {
-            return;
+            // Seed Admin User
+            var adminId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+            _dbContext.Users.Add(new User
+            {
+                Id = adminId,
+                Email = "admin@example.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+                DisplayName = "Admin",
+                Role = "admin",
+                Status = "active",
+                StylePreferences = [],
+                Locale = "zh-TW",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            // Seed Test User (jyunyu@example.com / ghjk1591)
+            _dbContext.Users.Add(new User
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+                Email = "jyunyu@example.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("ghjk1591"),
+                DisplayName = "Jun Yu",
+                Role = "user",
+                Status = "active",
+                StylePreferences = ["casual", "streetwear", "minimal"],
+                Locale = "zh-TW",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+
+            _dbContext.SaveChanges();
         }
 
-        var now = DateTimeOffset.UtcNow;
-        _dbContext.Users.Add(new User
+        // Seed Sample Outfits if empty
+        if (_dbContext.Outfits.Any())
         {
-            Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
-            Email = "admin@example.com",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
-            DisplayName = "Admin",
-            Role = "admin",
-            Status = "active",
-            StylePreferences = [],
-            Locale = "zh-TW",
-            CreatedAt = now,
-            UpdatedAt = now
-        });
+            return; // Outfits already seeded
+        }
 
+        // Get test user ID (either seeded or existing)
+        var testUser = _dbContext.Users.FirstOrDefault(u => u.Email == "jyunyu@example.com");
+        if (testUser == null)
+        {
+            return; // No test user found
+        }
+
+        var testUserId = testUser.Id;
+
+        // Seed Sample Outfits (using Unsplash photos)
+        var sampleOutfits = new[]
+        {
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "都市休閒穿搭",
+                Description = "適合日常通勤的舒適簡約風格",
+                Occasion = "casual",
+                Season = "spring",
+                WeatherRange = "18-24",
+                ImageUrls = ["https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-10),
+                UpdatedAt = now.AddDays(-10)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "街頭潮流造型",
+                Description = "Oversize 上衣搭配寬褲的街頭風",
+                Occasion = "casual",
+                Season = "autumn",
+                WeatherRange = "15-22",
+                ImageUrls = ["https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-9),
+                UpdatedAt = now.AddDays(-9)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "優雅約會裝扮",
+                Description = "溫柔風格的約會穿搭提案",
+                Occasion = "date",
+                Season = "spring",
+                WeatherRange = "20-26",
+                ImageUrls = ["https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-8),
+                UpdatedAt = now.AddDays(-8)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "極簡黑白配色",
+                Description = "經典黑白配色的簡約穿搭",
+                Occasion = "casual",
+                Season = "all",
+                WeatherRange = "15-28",
+                ImageUrls = ["https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-7),
+                UpdatedAt = now.AddDays(-7)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "職場正式穿搭",
+                Description = "專業又時尚的辦公室穿搭",
+                Occasion = "work",
+                Season = "spring",
+                WeatherRange = "18-25",
+                ImageUrls = ["https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-6),
+                UpdatedAt = now.AddDays(-6)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "夏日清新風格",
+                Description = "輕盈舒適的夏日穿搭",
+                Occasion = "casual",
+                Season = "summer",
+                WeatherRange = "25-32",
+                ImageUrls = ["https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-5),
+                UpdatedAt = now.AddDays(-5)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "運動休閒混搭",
+                Description = "Athleisure 風格的日常穿搭",
+                Occasion = "casual",
+                Season = "spring",
+                WeatherRange = "16-24",
+                ImageUrls = ["https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-4),
+                UpdatedAt = now.AddDays(-4)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "秋冬層次穿搭",
+                Description = "多層次搭配的秋冬造型",
+                Occasion = "casual",
+                Season = "winter",
+                WeatherRange = "5-15",
+                ImageUrls = ["https://images.unsplash.com/photo-1581044777550-4cfa60707c03?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-3),
+                UpdatedAt = now.AddDays(-3)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "復古文藝風",
+                Description = "帶有復古感的文藝穿搭",
+                Occasion = "casual",
+                Season = "autumn",
+                WeatherRange = "12-20",
+                ImageUrls = ["https://images.unsplash.com/photo-1492707892479-7bc8d5a4ee93?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-2),
+                UpdatedAt = now.AddDays(-2)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "派對時尚裝扮",
+                Description = "亮眼的派對穿搭造型",
+                Occasion = "party",
+                Season = "all",
+                WeatherRange = "18-28",
+                ImageUrls = ["https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddDays(-1),
+                UpdatedAt = now.AddDays(-1)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "丹寧經典搭配",
+                Description = "永不退流行的丹寧穿搭",
+                Occasion = "casual",
+                Season = "all",
+                WeatherRange = "15-26",
+                ImageUrls = ["https://images.unsplash.com/photo-1485968579580-b6d095142e6e?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddHours(-18),
+                UpdatedAt = now.AddHours(-18)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "韓系簡約風格",
+                Description = "簡約俐落的韓系穿搭",
+                Occasion = "casual",
+                Season = "spring",
+                WeatherRange = "18-25",
+                ImageUrls = ["https://images.unsplash.com/photo-1509631179647-0177331693ae?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddHours(-12),
+                UpdatedAt = now.AddHours(-12)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "工裝機能風",
+                Description = "實用又帥氣的工裝穿搭",
+                Occasion = "casual",
+                Season = "autumn",
+                WeatherRange = "12-22",
+                ImageUrls = ["https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddHours(-6),
+                UpdatedAt = now.AddHours(-6)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "波西米亞風情",
+                Description = "自由隨性的波西米亞風格",
+                Occasion = "casual",
+                Season = "summer",
+                WeatherRange = "22-30",
+                ImageUrls = ["https://images.unsplash.com/photo-1467632499275-7a693a761056?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddHours(-3),
+                UpdatedAt = now.AddHours(-3)
+            },
+            new Outfit
+            {
+                Id = Guid.NewGuid(),
+                UserId = testUserId,
+                Title = "摩登都會風",
+                Description = "現代都會感的時尚穿搭",
+                Occasion = "work",
+                Season = "spring",
+                WeatherRange = "18-26",
+                ImageUrls = ["https://images.unsplash.com/photo-1550600000-00d26f7bc558?w=600&h=750&fit=crop&q=80"],
+                ModerationStatus = "approved",
+                CreatedAt = now.AddHours(-1),
+                UpdatedAt = now.AddHours(-1)
+            }
+        };
+
+        _dbContext.Outfits.AddRange(sampleOutfits);
         _dbContext.SaveChanges();
     }
 
